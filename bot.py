@@ -8,7 +8,8 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# ====================== 24 ASSET GRID (FIXED) ======================
+# ====================== 100% FIXED 24 ASSET GRID ======================
+# Is list ko kisi surat mein delete nahi karna
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -32,12 +33,12 @@ user_ctx = {}
 
 # ====================== DATABASE ======================
 def init_db():
-    conn = sqlite3.connect('apx_prime_v47.db')
+    conn = sqlite3.connect('apx_prime_v48.db')
     conn.execute('CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0)')
     conn.commit(); conn.close()
 
 async def check_access(uid):
-    conn = sqlite3.connect('apx_prime_v47.db')
+    conn = sqlite3.connect('apx_prime_v48.db')
     u = conn.execute("SELECT expiry, is_vip FROM users WHERE uid = ?", (uid,)).fetchone()
     conn.close()
     if u and u[2] == 1:
@@ -51,13 +52,13 @@ async def start_handler(message: types.Message):
     init_db()
     uid = message.from_user.id
     
-    # STRICT JOIN CHECK
+    # STRICT FIREWALL: JOIN CHECK FIRST
     try:
         chat = await bot.get_chat_member(CHANNEL_USERNAME, uid)
         if chat.status in ["left", "kicked"]:
             kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
             kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY ACCESS", callback_data="auth_check"))
-            return await message.answer_photo(photo=BANNER_URL, caption="🛡️ **STRICT AUTHENTICATION**\nJoin channel to sync your ID with Neural Nodes.", reply_markup=kb.as_markup())
+            return await message.answer_photo(photo=BANNER_URL, caption="🛡️ **STRICT ACCESS**\nPlease join the official channel to link your ID with the Neural Node.", reply_markup=kb.as_markup())
     except: pass
 
     await show_dashboard(message)
@@ -70,15 +71,15 @@ async def show_dashboard(message_or_call):
     
     kb = InlineKeyboardBuilder()
     if access == "ACTIVE":
-        kb.row(types.InlineKeyboardButton(text="🚀 LAUNCH TERMINAL", callback_data="init_term"))
+        kb.row(types.InlineKeyboardButton(text="🚀 LAUNCH APX TERMINAL", callback_data="init_term"))
     else:
-        kb.row(types.InlineKeyboardButton(text="🔑 ACTIVATE VIP LICENSE", callback_data="gen_key"))
+        kb.row(types.InlineKeyboardButton(text="🔑 GET 24H TEMP ACCESS", callback_data="gen_key_cmd"))
     
     kb.row(types.InlineKeyboardButton(text="👤 PROFILE", callback_data="profile"), types.InlineKeyboardButton(text="📜 RULES", callback_data="rules"))
-    kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
+    kb.row(types.InlineKeyboardButton(text="❌ EXIT SYSTEM", callback_data="exit_sys"))
 
     caption = (
-        f"🌌 **APX PRIME OS v47.0** 🌌\n"
+        f"🌌 **APX PRIME OS v48.0** 🌌\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕹️ **USER:** `{message_or_call.from_user.first_name}`\n"
         f"📡 **NODE:** {'⚡ STABLE' if access == 'ACTIVE' else '🔒 LOCKED'}\n"
@@ -90,26 +91,27 @@ async def show_dashboard(message_or_call):
     if isinstance(message_or_call, types.Message): await message_or_call.answer_photo(photo=BANNER_URL, caption=caption, reply_markup=kb.as_markup())
     else: await msg.edit_caption(caption=caption, reply_markup=kb.as_markup())
 
-# ====================== KEY SYSTEM ======================
-@dp.callback_query(F.data == "gen_key")
-async def gen_key(callback: types.CallbackQuery):
+# ====================== KEY & AUTO-REDIRECT ======================
+@dp.callback_query(F.data == "gen_key_cmd")
+async def gen_key_cmd(callback: types.CallbackQuery):
     key = f"APX-{random.randint(1000, 9999)}-VIP"
-    # CLEAN COPY FORMAT
-    await callback.message.answer(f"🔑 **YOUR LICENSE KEY:**\n\n`/verify {key}`\n\n**Tap the command above to copy**, then send it here.")
+    # User tap karega toh sirf ye command copy hogi
+    await callback.message.answer(f"🔑 **YOUR LICENSE KEY:**\n\n`/verify {key}`\n\n**Tap the command above to copy**, then send it here to unlock.")
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     uid = message.from_user.id
+    # Access for 24 Hours
     exp = (datetime.datetime.now() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect('apx_prime_v47.db')
+    conn = sqlite3.connect('apx_prime_v48.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip) VALUES (?, ?, 1)", (uid, exp))
     conn.commit(); conn.close()
     
-    await message.answer("✅ **ACCESS GRANTED!**\nSyncing PKT UTC+5 Handshake...")
+    await message.answer("✅ **ACCESS GRANTED!**\nTerminal Unlocked. Loading Dashboard...")
     await asyncio.sleep(1)
-    await start_handler(message) # AUTO REDIRECT
+    await start_handler(message) # AUTO-REDIRECT
 
-# ====================== TERMINAL WORKFLOW ======================
+# ====================== TERMINAL (24 PAIRS GRID) ======================
 @dp.callback_query(F.data == "init_term")
 async def init_term(callback: types.CallbackQuery):
     user_ctx[callback.from_user.id] = {"pairs": []}
@@ -123,7 +125,7 @@ async def render_grid(callback: types.CallbackQuery):
         text = f"✅ {display}" if display in sel else f"💠 {display}"
         builder.add(types.InlineKeyboardButton(text=text, callback_data=f"sel:{display}"))
     builder.adjust(2)
-    if sel: builder.row(types.InlineKeyboardButton(text=f"🔥 NEXT: SCAN ({len(sel)})", callback_data="ask_time"))
+    if sel: builder.row(types.InlineKeyboardButton(text=f"🔥 SCAN NODES ({len(sel)})", callback_data="ask_time"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="auth_check"))
     await callback.message.edit_caption(caption="🧪 **ASSET GRID (24 PAIRS)**", reply_markup=builder.as_markup())
 
@@ -159,7 +161,7 @@ async def execute_signals(message: types.Message):
     load = await message.answer("📡 **ANALYZING...**")
     for i in [40, 80, 100]:
         await asyncio.sleep(0.4); bar = "🟦" * (i // 10) + "⬜" * (10 - i // 10)
-        await load.edit_text(f"🧪 **SCANNING API**\n`[{bar}] {i}%` \nStatus: PKT Active")
+        await load.edit_text(f"🧪 **SCANNING API**\n`[{bar}] {i}%` \nNodes: PKT Active")
 
     report = (
         f"╔════════════════════════════╗\n"
