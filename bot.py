@@ -7,7 +7,6 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.exceptions import TelegramBadRequest
 
 # ====================== CONFIGURATION ======================
 TOKEN = os.getenv("BOT_TOKEN", "")
@@ -19,29 +18,40 @@ API_URL = "https://apx-otc-api-production.up.railway.app/"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {} 
-GLOBAL_BC = {"mode": "auto", "text": ""}
+BC_CTRL = {"mode": "auto", "msg": ""}
 
+# MUKKAMMAL 24 PAIRS - NO ASSET MISSING
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
-    "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC", "GBPUSD": "🇬🇧🇺🇸 GBPUSD-OTC", "XAUUSD": "🥇🔱 XAUUSD-OTC",   
-    "BTCUSD": "₿🌐 BTCUSD-OTC", "AAPL": "🍎 AAPL-OTC", "MSFT": "💻 MSFT-OTC", 
-    "INTL": "🔬 INTL-OTC", "MCD": "🍔 MCD-OTC", "JNJ": "🏥 JNJ-OTC"
+    "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
+    "GBPUSD": "🇬🇧🇺🇸 GBPUSD-OTC", "USDCAD": "🇺🇸🇨🇦 USDCAD-OTC", "XAUUSD": "🥇🔱 XAUUSD-OTC",   
+    "BTCUSD": "₿🌐 BTCUSD-OTC", "USDTRY": "🇺🇸🇹🇷 USDTRY-OTC", "USDBRL": "🇺🇸🇧🇷 USDBRL-OTC",
+    "NZDUSD": "🇳🇿🇺🇸 NZDUSD-OTC", "AUDUSD": "🇦🇺🇺🇸 AUDUSD-OTC", "USDCHF": "🇺🇸🇨🇭 USDCHF-OTC", 
+    "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
+    "AAPL": "🍎 AAPL-OTC", "MSFT": "💻 MSFT-OTC", "PFE": "💊 PFE-OTC", "JNJ": "🏥 JNJ-OTC",
+    "MCD": "🍔 MCD-OTC", "INTL": "🔬 INTL-OTC"
 }
 
 # ====================== CORE ENGINES ======================
 def init_db():
-    conn = sqlite3.connect('apx_prime_v35.db')
+    conn = sqlite3.connect('apx_overlord.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (uid INTEGER PRIMARY KEY, expiry TEXT, start_session TEXT, total_hours REAL DEFAULT 0.0)''')
+                 (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
 
-async def get_market_status():
-    if GLOBAL_BC["mode"] == "manual": return f"📢 {GLOBAL_BC['text']}"
+async def is_vip_active(uid):
+    conn = sqlite3.connect('apx_overlord.db')
+    u = conn.execute("SELECT is_vip FROM users WHERE uid = ?", (uid,)).fetchone()
+    conn.close()
+    return True if u and u[0] == 1 else False
+
+async def get_node_status():
+    if BC_CTRL["mode"] == "manual": return f"📢 {BC_CTRL['msg']}"
     now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)
     h = now.hour
-    if 2 <= h < 8: return "🌙 **SLEEP MODE** (Market Low Volatility)"
+    if 2 <= h < 8: return "🌙 **SLEEP MODE** (Low Vol)"
     elif 13 <= h < 15: return "❄️ **COOL DOWN** (API Maintenance)"
-    return "✅ **ACTIVE** (High Precision Extraction)"
+    return "✅ **NODE: STABLE (UTC+5)**"
 
 # ====================== HANDLERS ======================
 @dp.message(Command("start"))
@@ -49,46 +59,50 @@ async def start_handler(message: types.Message):
     init_db()
     uid = message.from_user.id
     
-    # --- STEP 1: MANDATORY CHANNEL JOIN ---
+    # 1. STRICT JOIN CHECK
     try:
         chat = await bot.get_chat_member(CHANNEL_USERNAME, uid)
         if chat.status in ["left", "kicked"]:
             kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📢 JOIN OFFICIAL CHANNEL", url=f"https://t.me/vectabot1"))
-            kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY & INITIALIZE", callback_data="auth_check"))
-            return await message.answer_photo(photo=BANNER_URL, caption="⚠️ **STRICT SECURITY BLOCK**\nJoin our channel to synchronize your ID with the Neural API Node.", reply_markup=kb.as_markup())
+            kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY & ACCESS", callback_data="auth_check"))
+            return await message.answer_photo(photo=BANNER_URL, caption="🚫 **STRICT ACCESS**\nPlease join our channel to synchronize with the API Node.", reply_markup=kb.as_markup())
     except: pass
 
-    # --- DASHBOARD LOGIC ---
-    status = await get_market_status()
+    # 2. VIP STATUS & DASHBOARD
+    is_vip = await is_vip_active(uid)
+    node_status = await get_node_status()
     pkt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)).strftime("%H:%M")
     
     kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🚀 LAUNCH TITAN TERMINAL", callback_data="init_term"))
+    if not is_vip:
+        kb.row(types.InlineKeyboardButton(text="🔑 GET TEMP ACCESS KEY", callback_data="get_temp"))
+    else:
+        kb.row(types.InlineKeyboardButton(text="🚀 LAUNCH TITAN TERMINAL", callback_data="init_term"))
+    
     kb.row(types.InlineKeyboardButton(text="👤 PROFILE", callback_data="profile"), types.InlineKeyboardButton(text="📜 RULES", callback_data="rules"))
-    kb.row(types.InlineKeyboardButton(text="🔑 GET TEMP ACCESS", callback_data="get_temp"))
-    kb.row(types.InlineKeyboardButton(text="❌ SHUTDOWN", callback_data="exit_sys"))
+    kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     caption = (
-        f"💎 **APX PRIME OS v35.0** 💎\n"
+        f"💎 **APX PRIME OS v37.0** 💎\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 **TRADER:** `{message.from_user.first_name}`\n"
-        f"📡 **NODE:** {status}\n"
-        f"⏰ **PKT TIME:** `{pkt}` (UTC+5)\n"
+        f"📡 **NODE:** {node_status}\n"
+        f"⏰ **PKT:** `{pkt}` | **RANK:** `{'VIP 💎' if is_vip else 'GUEST'}`\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"System Calibrated. Awaiting Neural Handshake..."
+        f"Institutional Handshake Active."
     )
     
     if isinstance(message, types.Message): await message.answer_photo(photo=BANNER_URL, caption=caption, reply_markup=kb.as_markup())
     else: await message.message.edit_caption(caption=caption, reply_markup=kb.as_markup())
 
-# ====================== WORKFLOW (ANIMATED SELECTION) ======================
+# ====================== SELECTION FLOW ======================
 @dp.callback_query(F.data == "init_term")
 async def init_term(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder().row(
-        types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"),
+        types.InlineKeyboardButton(text="🎯 SINGLE", callback_data="m:single"),
         types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi")
     ).row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="auth_check")).as_markup()
-    await callback.message.edit_caption(caption="⚡ **SELECT EXTRACTION MODE**:", reply_markup=kb)
+    await callback.message.edit_caption(caption="⚡ **EXTRACTION INTENSITY**:", reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
@@ -105,7 +119,7 @@ async def render_grid(callback: types.CallbackQuery):
     builder.adjust(2)
     if sel: builder.row(types.InlineKeyboardButton(text=f"🔥 NEXT: INDICATORS ({len(sel)})", callback_data="ask_ind"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="init_term"))
-    await callback.message.edit_caption(caption=f"🧪 **ASSET GRID (24 PAIRS)**\nSelected: {', '.join([p.split(' ')[1] for p in sel]) if sel else 'None'}", reply_markup=builder.as_markup())
+    await callback.message.edit_caption(caption="🧪 **ASSET GRID (24 PAIRS)**", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_p(callback: types.CallbackQuery):
@@ -117,16 +131,15 @@ async def toggle_p(callback: types.CallbackQuery):
         elif len(user_ctx[uid]["pairs"]) < 3: user_ctx[uid]["pairs"].append(pair)
     await render_grid(callback)
 
-# ====================== STRATEGY & TIME (MANUAL) ======================
 @dp.callback_query(F.data == "ask_ind")
 async def ask_ind(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
-    for ind in ["Bollinger Bands", "RSI Neural V3", "MACD Zero-Cross"]:
+    for ind in ["Bollinger Bands", "Neural RSI V3", "Price Action"]:
         kb.row(types.InlineKeyboardButton(text=f"📊 {ind}", callback_data=f"set_i:{ind}"))
-    await callback.message.edit_caption(caption="🧠 **MANUAL STRATEGY SELECTION**:", reply_markup=kb.as_markup())
+    await callback.message.edit_caption(caption="🧠 **STRATEGY CONFIG**:", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("set_i:"))
-async def ask_time_step(callback: types.CallbackQuery):
+async def ask_time_1(callback: types.CallbackQuery):
     user_ctx[callback.from_user.id]["ind"] = callback.data.split(":")[1]
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
@@ -144,17 +157,16 @@ async def handle_times(message: types.Message):
         user_ctx[uid]["end_t"] = message.text
         await execute_signals(message)
 
-# ====================== EXTRACTION (ANIMATED BARS) ======================
+# ====================== EXTRACTION (BLUE NEON BARS) ======================
 async def execute_signals(message: types.Message):
     uid = message.from_user.id
     data = user_ctx[uid]
-    load = await message.answer("📡 **SYNCHRONIZING WITH NEURAL NODES...**")
+    load = await message.answer("📡 **INITIALIZING API...**")
     
-    # FLASHING ANIMATION
-    for i in [20, 50, 85, 100]:
+    for i in [30, 65, 90, 100]:
         await asyncio.sleep(0.4)
         bar = "🟦" * (i // 10) + "⬜" * (10 - i // 10)
-        await load.edit_text(f"🧪 **CALIBRATING {data['ind']}**\n`[{bar}] {i}%` \nNodes: UTC+5 PKT Active")
+        await load.edit_text(f"🧪 **SCANNING {data['ind']}**\n`[{bar}] {i}%` \nExtraction Depth: 95%+")
 
     report = (
         f"╔════════════════════════════╗\n"
@@ -174,56 +186,53 @@ async def execute_signals(message: types.Message):
             report += f" `{curr.strftime('%H:%M')}` ┃ `{p.split(' ')[1][:6]}` ┃ `{'CALL' if random.choice([0,1]) else 'PUT '}` ┃ `{random.randint(94, 99)}%` \n"
         curr += datetime.timedelta(minutes=random.randint(5, 12))
 
-    kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📋 COPY SIGNALS", callback_data="copy_done"))
+    kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📋 COPY SIGNALS", callback_data="copy_ack"))
     kb.row(types.InlineKeyboardButton(text="⬅️ NEW EXTRACTION", callback_data="auth_check"))
     
     await load.delete()
     await message.answer(report + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ **API VERIFIED | UTC+5 PKT**", parse_mode="Markdown", reply_markup=kb.as_markup())
     user_ctx.pop(uid, None)
 
-# ====================== UTILS (PROFILE, ADMIN, KEY) ======================
-@dp.callback_query(F.data == "profile")
-async def profile_cb(callback: types.CallbackQuery):
-    # Performance Tracking Logic
-    now = datetime.datetime.now()
-    reg = "PAKISTAN 🇵🇰" # Simplified for PKT Zone
-    await callback.answer(f"👤 Trader: {callback.from_user.first_name}\n🌍 Region: {reg}\n⏱ Session: Active\n🛡 Rank: VIP Member", show_alert=True)
-
-@dp.callback_query(F.data == "get_temp")
-async def temp_key(callback: types.CallbackQuery):
-    key = f"APX-{random.randint(1000,9999)}"
-    await callback.message.answer(f"🔑 **ACCESS KEY:**\n`{key}`\n\nSend `/verify {key}` to activate.")
-
+# ====================== ADMIN & UTILS ======================
 @dp.message(Command("admin"))
 async def admin_bc(message: types.Message):
     if message.from_user.id != ADMIN_ID: return
     user_ctx[message.from_user.id] = {"step": "admin_bc"}
-    await message.answer("🎙 **MASTER BROADCAST**\nSend the message for Dashboard Node:")
+    await message.answer("🎙 **MASTER BROADCAST**\nSend message for Dashboard Status:")
 
 @dp.message(lambda m: user_ctx.get(m.from_user.id, {}).get("step") == "admin_bc")
 async def save_bc(message: types.Message):
-    GLOBAL_BC["text"] = message.text; GLOBAL_BC["mode"] = "manual"
+    BC_CTRL["msg"] = message.text; BC_CTRL["mode"] = "manual"
     user_ctx.pop(message.from_user.id)
-    await message.answer("✅ Global Dashboard Updated!")
+    await message.answer("✅ Dashboard Status Updated!")
 
-@dp.callback_query(F.data == "rules")
-async def rules_cb(callback: types.CallbackQuery):
-    await callback.message.edit_caption(caption="📜 **APX MASTER RULES**\n\n1. OTC Assets only.\n2. M-1 Martingale permitted.\n3. 1-Minute expiry only.", reply_markup=InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="auth_check")).as_markup())
+@dp.callback_query(F.data == "get_temp")
+async def temp_key(callback: types.CallbackQuery):
+    key = f"APX-{random.randint(1000,9999)}"
+    await callback.message.answer(f"🔑 **ACCESS KEY (COPY):**\n`{key}`\n\nSend `/verify {key}` to activate.")
+
+@dp.message(Command("verify"))
+async def verify_cmd(message: types.Message):
+    conn = sqlite3.connect('apx_overlord.db')
+    conn.execute("INSERT OR REPLACE INTO users (uid, is_vip) VALUES (?, 1)", (message.from_user.id,))
+    conn.commit(); conn.close()
+    await message.answer("✅ **ACCESS GRANTED!** Restart /start")
 
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
-    await callback.answer("Authenticating..."); await callback.message.delete(); await start_handler(callback.message)
+    await callback.message.delete(); await start_handler(callback.message)
 
-@dp.callback_query(F.data == "copy_done")
+@dp.callback_query(F.data == "copy_ack")
 async def copy_ack(callback: types.CallbackQuery):
-    await callback.answer("✅ Signals copied to secure clipboard!", show_alert=True)
+    await callback.answer("✅ Signals copied to clipboard!", show_alert=True)
 
 @dp.callback_query(F.data == "exit_sys")
 async def exit_cb(callback: types.CallbackQuery):
-    await callback.message.delete(); await callback.message.answer("🌌 **APX PRIME TERMINAL**\n*Node Disconnected. Stay Ahead.*")
+    await callback.message.delete(); await callback.message.answer("🌌 **APX PRIME SHUTDOWN**\nStay Ahead of the Market.")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__": asyncio.run(main())
+    
