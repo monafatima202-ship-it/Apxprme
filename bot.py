@@ -13,12 +13,13 @@ ADMIN_ID = 6507462873
 CHANNEL_USERNAME = "@vectabot1"
 BANNER_URL = "https://raw.githubusercontent.com/monafatima202-ship-it/apx-otc-api/main/apxprime.png"
 
+# Fixed Parse Mode to HTML for Copy functionality
 bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 user_ctx = {} 
-GLOBAL_BC = {"active": False, "text": ""}
+NOTICE_DATA = {"active": False, "text": ""} # Renamed to avoid crash
 
-# HARD-CODED 24 ASSETS WITH DUAL FLAGS (US + COUNTRY)
+# HARD-CODED 24 ASSETS WITH DUAL FLAGS (🇺🇸 + COUNTRY)
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -32,13 +33,13 @@ PAIRS_DATA = {
 
 # ====================== DATABASE ======================
 def init_db():
-    conn = sqlite3.connect('apx_v120_master.db')
+    conn = sqlite3.connect('apx_v125.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS users 
                  (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0, key_taken INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
 
 async def get_node_status():
-    if GLOBAL_BC["active"]: return f"📢 {GLOBAL_BC['text']}"
+    if NOTICE_DATA["active"]: return f"📢 {NOTICE_DATA['text']}"
     h = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)).hour
     if 2 <= h < 8: return "🌙 SLEEP MODE"
     elif 13 <= h < 15: return "❄️ COOL DOWN"
@@ -54,38 +55,40 @@ async def start_handler(message: types.Message):
         if chat.status in ["left", "kicked"]:
             kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
             kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY ACCESS", callback_data="auth_check"))
-            return await message.answer_photo(photo=BANNER_URL, caption="<b>🛡️ ACCESS DENIED</b>\nPlease join @vectabot1 to unlock the supremacy terminal.", reply_markup=kb.as_markup())
+            return await message.answer_photo(photo=BANNER_URL, caption="<b>🛡️ ACCESS DENIED</b>\nPlease join @vectabot1 first to unlock the terminal.", reply_markup=kb.as_markup())
     except: pass
     await show_dashboard(message)
 
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
-    chat = await bot.get_chat_member(CHANNEL_USERNAME, callback.from_user.id)
-    if chat.status not in ["left", "kicked"]:
-        await callback.message.delete()
-        await bot.send_message(callback.from_user.id, "🎆")
-        await asyncio.sleep(0.5)
-        await show_dashboard(callback)
-    else: await callback.answer("❌ Join @vectabot1 first!", show_alert=True)
+    try:
+        chat = await bot.get_chat_member(CHANNEL_USERNAME, callback.from_user.id)
+        if chat.status not in ["left", "kicked"]:
+            await callback.message.delete()
+            await bot.send_message(callback.from_user.id, "🎆")
+            await asyncio.sleep(0.5)
+            await show_dashboard(callback)
+        else: await callback.answer("❌ Please join channel first!", show_alert=True)
+    except: pass
 
 async def show_dashboard(m_c):
     uid = m_c.from_user.id
     msg = m_c if isinstance(m_c, types.Message) else m_c.message
     
-    conn = sqlite3.connect('apx_v120_master.db')
+    conn = sqlite3.connect('apx_v125.db')
     u = conn.execute("SELECT expiry, is_vip, key_taken FROM users WHERE uid = ?", (uid,)).fetchone()
     conn.close()
     
-    is_active = False
+    access = "LOCKED"
     if u and u[1] == 1:
         exp = datetime.datetime.strptime(u[0], "%Y-%m-%d %H:%M:%S")
-        if datetime.datetime.now() < exp: is_active = True
+        if datetime.datetime.now() < exp: access = "ACTIVE"
 
     node = await get_node_status()
     pkt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)).strftime("%H:%M")
     
     kb = InlineKeyboardBuilder()
-    if is_active:
+    if access == "ACTIVE":
         kb.row(types.InlineKeyboardButton(text="🚀 LAUNCH TERMINAL", callback_data="init_term"))
     elif not u or u[2] == 0:
         kb.row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
@@ -97,33 +100,16 @@ async def show_dashboard(m_c):
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     caption = (
-        f"🌌 <b>APX PRIME OS v120.0</b> 🌌\n"
+        f"🌌 <b>APX PRIME OS v125.0</b> 🌌\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕹️ <b>TRADER:</b> <code>{m_c.from_user.first_name}</code>\n"
         f"📡 <b>STATUS:</b> {node}\n"
         f"🕰️ <b>PKT TIME:</b> <code>{pkt}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"Neural v12.0: 🟢 <b>Stable Handshake</b>"
+        f"Institutional Handshake: 🟢 <b>Stable</b>"
     )
     if isinstance(m_c, types.Message): await m_c.answer_photo(photo=BANNER_URL, caption=caption, reply_markup=kb.as_markup())
     else: await msg.edit_caption(caption=caption, reply_markup=kb.as_markup())
-
-# ====================== KEY SYSTEM ======================
-@dp.callback_query(F.data == "get_key")
-async def get_key(callback: types.CallbackQuery):
-    key = f"APX-{random.randint(1000, 9999)}-VIP"
-    conn = sqlite3.connect('apx_v120_master.db')
-    conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
-    conn.commit(); conn.close()
-    await callback.message.answer(f"🔑 <b>YOUR VIP KEY:</b>\n\n<code>/verify {key}</code>\n\nTap to copy, then send here.")
-
-@dp.message(F.text.startswith("/verify"))
-async def verify_cmd(message: types.Message):
-    exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect('apx_v120_master.db')
-    conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
-    conn.commit(); conn.close()
-    await message.answer("✅ <b>AUTHORIZED</b>. Syncing Dashboard..."); await asyncio.sleep(1); await start_handler(message)
 
 # ====================== TERMINAL FLOW (2-COLUMN GRID) ======================
 @dp.callback_query(F.data == "init_term")
@@ -132,7 +118,7 @@ async def init_term(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
-    await callback.message.edit_caption(caption="⚡ <b>SELECT MODE:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_caption(caption="⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
@@ -144,15 +130,14 @@ async def render_grid(callback: types.CallbackQuery):
     sel = user_ctx[uid]["pairs"]
     builder = InlineKeyboardBuilder()
     
-    # Proper 2-Column Grid as per user screenshot
+    # 2-Column Fancy Grid with Dual Flags
     for code, display in PAIRS_DATA.items():
         text = f"✅ {display}" if display in sel else f"💠 {display}"
         builder.add(types.InlineKeyboardButton(text=text, callback_data=f"sel:{display}"))
     
     builder.adjust(2) 
     
-    if sel:
-        builder.row(types.InlineKeyboardButton(text="🚀 NEURAL SCAN", callback_data="ask_param"))
+    if sel: builder.row(types.InlineKeyboardButton(text="🚀 NEURAL SCAN", callback_data="ask_time"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="init_term"))
     
     await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", reply_markup=builder.as_markup())
@@ -166,14 +151,7 @@ async def toggle_p(callback: types.CallbackQuery):
     elif len(user_ctx[uid]["pairs"]) < limit: user_ctx[uid]["pairs"].append(pair)
     await render_grid(callback)
 
-@dp.callback_query(F.data == "ask_param")
-async def ask_param(callback: types.CallbackQuery):
-    kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="📊 BOLLINGER BANDS", callback_data="set_p:Bands"))
-    kb.row(types.InlineKeyboardButton(text="🗓️ 30D QUOTEX DATA", callback_data="set_p:30D"))
-    await callback.message.edit_caption(caption="🧠 <b>SET SCAN PARAMETERS:</b>", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("set_p:"))
+@dp.callback_query(F.data == "ask_time")
 async def ask_time(callback: types.CallbackQuery):
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
@@ -200,8 +178,8 @@ async def execute_signals(message: types.Message, is_regen=False):
         report = data["last_report"]
     else:
         load = await msg_obj.answer("📡 <b>SCANNING...</b>")
-        await asyncio.sleep(1)
-        await load.edit_text("🧪 <b>NEURAL SYNC:</b> <code>[🟦🟦🟦🟦🟦] 100%</code>")
+        await asyncio.sleep(1); bar = "🟦🟦🟦🟦🟦⬜⬜⬜⬜⬜"
+        await load.edit_text(f"🧪 <b>NEURAL SYNC</b>\n<code>[{bar}] 100%</code>")
         
         report = f"APX ALPHA SIGNALS\n━━━━━━━━━━━━━━━━━━━━━━\n"
         start = datetime.datetime.strptime(data['start_t'], "%H:%M")
@@ -210,22 +188,39 @@ async def execute_signals(message: types.Message, is_regen=False):
         while curr < end:
             for p in data["pairs"]:
                 report += f"{curr.strftime('%H:%M')} | {p.split(' ')[1][:6]} | {'CALL' if random.choice([0,1]) else 'PUT '} | {random.randint(95, 99)}%\n"
-            curr += datetime.timedelta(minutes=random.randint(10, 15))
+            curr += datetime.timedelta(minutes=random.randint(9, 15))
         data["last_report"] = report
         await load.delete()
 
-    kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE", callback_data="regen_sig"),
-           types.InlineKeyboardButton(text="🔄 CHANGE PAIR", callback_data="init_term"))
-    kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
+    kb = InlineKeyboardBuilder().row(
+        types.InlineKeyboardButton(text="🔄 REGENERATE", callback_data="regen_sig"),
+        types.InlineKeyboardButton(text="🔄 CHANGE PAIR", callback_data="init_term")
+    ).row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys")).as_markup()
 
     final_msg = f"📋 <b>TAP TO COPY SIGNALS:</b>\n\n<code>{report}</code>\n━━━━━━━━━━━━━━━━━━━━━━\n✅ PKT UTC+5"
-    if is_regen: await msg_obj.edit_text(final_msg, reply_markup=kb.as_markup())
-    else: await msg_obj.answer(final_msg, reply_markup=kb.as_markup())
+    if is_regen: await msg_obj.edit_text(final_msg, reply_markup=kb)
+    else: await msg_obj.answer(final_msg, reply_markup=kb)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("Loading cached signals..."); await execute_signals(callback, is_regen=True)
+    await callback.answer("Showing previous signals..."); await execute_signals(callback, is_regen=True)
+
+# ====================== KEY & EXIT ======================
+@dp.callback_query(F.data == "get_key")
+async def get_key(callback: types.CallbackQuery):
+    key = f"APX-{random.randint(1000, 9999)}-VIP"
+    conn = sqlite3.connect('apx_v125.db')
+    conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
+    conn.commit(); conn.close()
+    await callback.message.answer(f"🔑 <b>YOUR VIP KEY:</b>\n\n<code>/verify {key}</code>\n\nTap to copy, then send here.")
+
+@dp.message(F.text.startswith("/verify"))
+async def verify_cmd(message: types.Message):
+    exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect('apx_v125.db')
+    conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
+    conn.commit(); conn.close()
+    await message.answer("✅ <b>AUTHORIZED</b>. Syncing Dashboard..."); await asyncio.sleep(1); await start_handler(message)
 
 @dp.callback_query(F.data == "exit_sys")
 async def exit_cb(callback: types.CallbackQuery):
