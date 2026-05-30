@@ -2,10 +2,12 @@ import os
 import asyncio
 import datetime
 import sqlite3
+import random
 import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.client.default import DefaultBotProperties # CRITICAL FIX FOR AIOGRAM v3+
 
 # ====================== CONFIGURATION ======================
 TOKEN = os.getenv("BOT_TOKEN", "")
@@ -13,12 +15,12 @@ ADMIN_ID = 6507462873
 CHANNEL_USERNAME = "@vectabot1"
 BANNER_URL = "https://raw.githubusercontent.com/monafatima202-ship-it/apx-otc-api/main/apxprime.png"
 
-# HTML Mode Active for Tap-to-Copy
-bot = Bot(token=TOKEN, parse_mode="HTML")
+# 🔥 CRITICAL FIX: Passing parse_mode via DefaultBotProperties to prevent Railway crashes
+bot = Bot(token=TOKEN, default_properties=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 user_ctx = {} 
 
-# HARD-CODED DUAL FLAGS (API-COMPATIBLE KEYS)
+# HARD-CODED DUAL FLAGS (US + COUNTRY)
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -32,7 +34,7 @@ PAIRS_DATA = {
 
 # ====================== DATABASE ======================
 def init_db():
-    conn = sqlite3.connect('apx_live_v160.db')
+    conn = sqlite3.connect('apx_live_v165.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS users 
                  (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0, key_taken INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
@@ -67,7 +69,7 @@ async def show_dashboard(m_c):
     uid = m_c.from_user.id
     msg = m_c if isinstance(m_c, types.Message) else m_c.message
     
-    conn = sqlite3.connect('apx_live_v160.db')
+    conn = sqlite3.connect('apx_live_v165.db')
     u = conn.execute("SELECT expiry, is_vip, key_taken FROM users WHERE uid = ?", (uid,)).fetchone()
     conn.close()
     
@@ -90,10 +92,10 @@ async def show_dashboard(m_c):
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     caption = (
-        f"🌌 <b>APX PRIME OS v160.0</b> 🌌\n"
+        f"🌌 <b>APX PRIME OS v165.0</b> 🌌\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕹️ <b>TRADER:</b> <code>{m_c.from_user.first_name}</code>\n"
-        f"📡 <b>STATUS:</b> ✅ <b>LIVE API SINC</b>\n"
+        f"📡 <b>STATUS:</b> ✅ <b>LIVE API SYNC</b>\n"
         f"🕰️ <b>PKT TIME:</b> <code>{pkt}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"Institutional Nodes: 🟢 <b>Connected</b>"
@@ -140,7 +142,7 @@ async def toggle_p(callback: types.CallbackQuery):
 async def ask_time(callback: types.CallbackQuery):
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>LIVE PROTOCOL</b>\nSend Start Time (e.g. <code>14:00</code>)")
+    await callback.message.answer("🕒 <b>TIME PROTOCOL</b>\nSend Start Time (e.g. <code>14:00</code>)")
 
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
@@ -149,12 +151,12 @@ async def handle_times(message: types.Message):
     if user_ctx[uid]["step"] == "start_t":
         user_ctx[uid]["start_t"] = message.text
         user_ctx[uid]["step"] = "end_t"
-        await message.answer("🕒 <b>LIVE PROTOCOL</b>\nSend End Time (e.g. <code>16:00</code>)")
+        await message.answer("🕒 <b>TIME PROTOCOL</b>\nSend End Time (e.g. <code>16:00</code>)")
     elif user_ctx[uid]["step"] == "end_t":
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== LIVE API FETCH & FILTER ENGINE ======================
+# ====================== LIVE API FETCH ENGINE ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id if isinstance(message, types.Message) else message.from_user.id
     msg_obj = message if isinstance(message, types.Message) else message.message
@@ -172,7 +174,6 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
 
         async with aiohttp.ClientSession() as session:
-            # Loop through selected pairs to fetch data from live URL
             for pair_code in data["pairs"]:
                 api_url = f"https://milongazi197.serv00.net/f/api.php?pair={pair_code}-OTC&count=100"
                 try:
@@ -181,16 +182,13 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                             lines = (await response.text()).split('\n')
                             for line in lines:
                                 if not line.strip() or "|" not in line: continue
-                                
-                                # Sample parsing based on API text format
                                 parts = line.split('|')
                                 if len(parts) >= 2:
-                                    sig_time_str = parts[0].strip() # Expected "12:53"
-                                    sig_dir = parts[1].strip().upper() # Expected "PUT" or "BUY"
+                                    sig_time_str = parts[0].strip()
+                                    sig_dir = parts[1].strip().upper()
                                     
                                     try:
                                         sig_time = datetime.datetime.strptime(sig_time_str, "%H:%M").time()
-                                        # Filter signals within the user selected range
                                         if start_time <= sig_time <= end_time:
                                             body += f"⧉ {pair_code:8}-OTC - {sig_time_str} ⇨ {sig_dir}\n"
                                     except: pass
@@ -219,7 +217,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 @dp.callback_query(F.data == "get_key")
 async def get_key(callback: types.CallbackQuery):
     key = f"APX-{random.randint(1000, 9999)}-VIP"
-    conn = sqlite3.connect('apx_live_v160.db')
+    conn = sqlite3.connect('apx_live_v165.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
     conn.commit(); conn.close()
     await callback.message.answer(f"🔑 <b>TAP TO COPY KEY:</b>\n\n<code>/verify {key}</code>")
@@ -227,7 +225,7 @@ async def get_key(callback: types.CallbackQuery):
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect('apx_live_v160.db')
+    conn = sqlite3.connect('apx_live_v165.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
     await message.answer("✅ <b>AUTHORIZED</b>"); await start_handler(message)
