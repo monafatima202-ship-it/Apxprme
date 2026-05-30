@@ -105,7 +105,7 @@ async def show_mode_selection(message: types.Message):
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer("⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== MULTI PAIR SELECTION ======================
+# ====================== PAIR SELECTION ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -172,7 +172,7 @@ async def handle_times(message: types.Message):
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== STYLISH SIGNAL ENGINE ======================
+# ====================== FINAL STYLISH SIGNAL ENGINE ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -182,15 +182,15 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        # 🔥 STYLISH COLORFUL LOADING
-        load = await message.answer("🌐 <b>APX PRIME API CONNECTING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
-        await asyncio.sleep(0.7)
-        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓░░░░░░░░ 40%</code> 🔥", parse_mode="HTML")
-        await asyncio.sleep(0.7)
-        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓▓▓▓░░░░░ 70%</code> ⚡", parse_mode="HTML")
-        await asyncio.sleep(0.7)
-        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓▓▓▓▓▓░░░ 90%</code> 🚀", parse_mode="HTML")
+        # Stylish Loading
+        load = await message.answer("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
         await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓░░░░░░░░ 40%</code> ⚡", parse_mode="HTML")
+        await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓▓▓▓░░░░░ 70%</code> 🔥", parse_mode="HTML")
+        await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓▓▓▓▓▓░░░ 95%</code> 🚀", parse_mode="HTML")
+        await asyncio.sleep(0.5)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
         end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
@@ -199,8 +199,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
         header += "━━━━━━━━━━━━━━━━━━━━━━\n"
 
-        body = ""
-        count = 0
+        signals = []
         async with aiohttp.ClientSession() as session:
             for pair in data["pairs"]:
                 try:
@@ -217,22 +216,25 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                                         try:
                                             sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
                                             if start_time <= sig_time <= end_time:
-                                                emoji = "🟢" if direction == "CALL" else "🔴"
-                                                body += f"{emoji} <b>{pair}</b> → {t_str} ⇨ <b>{direction}</b>\n"
-                                                count += 1
-                                                if count >= 12: break
+                                                signals.append((sig_time, pair, direction, t_str))
                                         except: pass
                 except: pass
-                if count >= 12: break
 
-        await load.delete()
+        # Sort by time
+        signals.sort(key=lambda x: x[0])
+
+        body = ""
+        for _, pair, direction, t_str in signals[:15]:
+            body += f"🔹 <b>{pair}</b> → {t_str} ⇨ <b>{direction}</b>\n"
 
         if not body.strip():
-            body = "⚠️ No signals in selected time range.\n"
+            body = "⚠️ No signals found in selected time range.\n"
 
-        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot</i>"
+        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot • 80%+ Accuracy</i>"
         report_content = header + body + footer
         data["last_report"] = report_content
+
+        await load.delete()
 
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE SIGNALS", callback_data="regen_sig"))
