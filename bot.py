@@ -20,30 +20,14 @@ user_ctx = {}
 
 # ====================== PAIRS DATA ======================
 PAIRS_DATA = {
-    "USDINR": "🇺🇸🇮🇳 USDINR-OTC", 
-    "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", 
-    "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
-    "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", 
-    "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", 
-    "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
-    "GBPUSD": "🇬🇧🇺🇸 GBPUSD-OTC", 
-    "USDCAD": "🇺🇸🇨🇦 USDCAD-OTC", 
-    "XAUUSD": "🥇🔱 XAUUSD-OTC",   
-    "BTCUSD": "₿🌐 BTCUSD-OTC", 
-    "USDTRY": "🇺🇸🇹🇷 USDTRY-OTC", 
-    "USDBRL": "🇺🇸🇧🇷 USDBRL-OTC",
-    "NZDUSD": "🇳🇿🇺🇸 NZDUSD-OTC", 
-    "AUDUSD": "🇦🇺🇺🇸 AUDUSD-OTC", 
-    "USDCHF": "🇺🇸🇨🇭 USDCHF-OTC", 
-    "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", 
-    "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", 
-    "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
-    "AAPL": "🇺🇸🍎 AAPL-OTC", 
-    "MSFT": "🇺🇸💻 MSFT-OTC", 
-    "PFE": "🇺🇸💊 PFE-OTC", 
-    "JNJ": "🇺🇸🏥 JNJ-OTC",
-    "MCD": "🇺🇸🍔 MCD-OTC", 
-    "INTL": "🇺🇸🔬 INTL-OTC"
+    "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
+    "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
+    "GBPUSD": "🇬🇧🇺🇸 GBPUSD-OTC", "USDCAD": "🇺🇸🇨🇦 USDCAD-OTC", "XAUUSD": "🥇🔱 XAUUSD-OTC",   
+    "BTCUSD": "₿🌐 BTCUSD-OTC", "USDTRY": "🇺🇸🇹🇷 USDTRY-OTC", "USDBRL": "🇺🇸🇧🇷 USDBRL-OTC",
+    "NZDUSD": "🇳🇿🇺🇸 NZDUSD-OTC", "AUDUSD": "🇦🇺🇺🇸 AUDUSD-OTC", "USDCHF": "🇺🇸🇨🇭 USDCHF-OTC", 
+    "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
+    "AAPL": "🇺🇸🍎 AAPL-OTC", "MSFT": "🇺🇸💻 MSFT-OTC", "PFE": "🇺🇸💊 PFE-OTC", 
+    "JNJ": "🇺🇸🏥 JNJ-OTC", "MCD": "🇺🇸🍔 MCD-OTC", "INTL": "🇺🇸🔬 INTL-OTC"
 }
 
 # ====================== DATABASE ======================
@@ -64,8 +48,7 @@ async def start_handler(message: types.Message):
     
     await message.answer_photo(
         photo=BANNER_URL,
-        caption="<b>🔒 APX PRIME OS v190.0</b>\n\n"
-                "<i>TRADE SMART. STAY AHEAD.</i>",
+        caption="<b>🔒 APX PRIME OS v190.0</b>\n\n<i>TRADE SMART. STAY AHEAD.</i>",
         parse_mode="HTML",
         reply_markup=kb.as_markup()
     )
@@ -107,19 +90,12 @@ async def auth_check(callback: types.CallbackQuery):
 async def get_key(callback: types.CallbackQuery):
     await callback.answer()
     key = f"APX-{random.randint(1000,9999)}-{random.randint(1000,9999)}"
-    
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", 
                 (callback.from_user.id, "NONE"))
     conn.commit()
     conn.close()
-
-    await callback.message.answer(
-        f"🔑 <b>TEMPORARY ACCESS KEY</b>\n\n"
-        f"<code>{key}</code>\n\n"
-        f"Copy and send:\n<code>/verify {key}</code>",
-        parse_mode="HTML"
-    )
+    await callback.message.answer(f"🔑 <b>TEMPORARY ACCESS KEY</b>\n\n<code>{key}</code>\n\nCopy and send:\n<code>/verify {key}</code>", parse_mode="HTML")
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
@@ -128,19 +104,18 @@ async def verify_cmd(message: types.Message):
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit()
     conn.close()
-    
     await message.answer("✅ <b>7 DAYS ACCESS ACTIVATED SUCCESSFULLY!</b>", parse_mode="HTML")
     await show_mode_selection(message)
 
 async def show_mode_selection(message: types.Message):
-    uid = message.from_user.id if isinstance(message, types.Message) else message.from_user.id
+    uid = message.from_user.id
     user_ctx[uid] = {"pairs": [], "last_report": None}
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer("⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== MODE & PAIR SELECTION ======================
+# ====================== PAIR SELECTION ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -161,15 +136,10 @@ async def render_grid(callback: types.CallbackQuery):
         builder.row(types.InlineKeyboardButton(text="🚀 CONNECT TO LIVE API", callback_data="ask_time"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="back_to_mode"))
     
-    await callback.message.edit_caption(
-        caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", 
-        parse_mode="HTML", 
-        reply_markup=builder.as_markup()
-    ) if callback.message.caption else await callback.message.edit_text(
-        text="🧪 <b>SELECT ASSETS (MAX 3):</b>", 
-        parse_mode="HTML", 
-        reply_markup=builder.as_markup()
-    )
+    try:
+        await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
+    except:
+        await callback.message.edit_text(text="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_pair(callback: types.CallbackQuery):
@@ -182,7 +152,7 @@ async def toggle_pair(callback: types.CallbackQuery):
     elif len(user_ctx[uid]["pairs"]) < limit:
         user_ctx[uid]["pairs"].append(code)
 
-    await callback.answer()
+    await callback.answer(f"{'✅ Selected' if code in user_ctx[uid]['pairs'] else '❌ Deselected'}", show_alert=False)
     await render_grid(callback)
 
 @dp.callback_query(F.data == "back_to_mode")
@@ -197,7 +167,7 @@ async def ask_time(callback: types.CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>14:00</code>)", parse_mode="HTML")
 
-# ====================== TIME & SIGNALS ======================
+# ====================== TIME HANDLER ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
     uid = message.from_user.id
@@ -212,16 +182,17 @@ async def handle_times(message: types.Message):
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
+# ====================== SIGNAL ENGINE (IMPROVED) ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
-    if not data:
-        return await message.answer("Session expired. Start again with /start")
+    if not data or not data.get("pairs"):
+        return await message.answer("Please select assets first.")
 
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        load = await message.answer("📡 <b>CONNECTING TO LIVE OTC API...</b>", parse_mode="HTML")
+        load = await message.answer("📡 <b>CONNECTING TO OTC API</b>\n▰▰▰▱▱▱ 50%", parse_mode="HTML")
         
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
         end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
@@ -231,30 +202,31 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         header += "━━━━━━━━━━━━━━━━━━━━━━\n"
 
         body = ""
+        signal_count = 0
         async with aiohttp.ClientSession() as session:
             for pair in data["pairs"]:
                 try:
+                    await load.edit_text(f"📡 Fetching {pair}...\n▰▰▰▰▱▱ 70%", parse_mode="HTML")
                     async with session.get(f"https://milongazi197.serv00.net/f/api.php?pair={pair}-OTC&count=100", timeout=12) as resp:
                         if resp.status == 200:
                             text = await resp.text()
                             for line in text.split('\n'):
                                 if not line.strip(): continue
-                                line = line.replace('⧉', '').replace('⚡', '').strip()
-                                if "|" in line:
-                                    parts = line.split('|')
-                                elif " - " in line:
-                                    parts = line.split(' - ')
-                                else: continue
-                                
-                                if len(parts) >= 2:
-                                    t_str = parts[0].strip().split()[-1]
-                                    direction = parts[1].strip().upper().replace('⇨', '').strip()
-                                    try:
-                                        sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
-                                        if start_time <= sig_time <= end_time:
-                                            body += f"⧉ <b>{pair}</b> - {t_str} ⇨ <b>{direction}</b>\n"
-                                    except: pass
+                                # Improved parsing for actual API format
+                                if "=>" in line:
+                                    parts = [p.strip() for p in line.split("=>")]
+                                    if len(parts) >= 3:
+                                        t_str = parts[1].strip()
+                                        direction = parts[2].strip().upper()
+                                        try:
+                                            sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
+                                            if start_time <= sig_time <= end_time:
+                                                body += f"⧉ <b>{pair}</b> - {t_str} ⇨ <b>{direction}</b>\n"
+                                                signal_count += 1
+                                                if signal_count >= 10: break  # Limit signals
+                                        except: pass
                 except: pass
+                if signal_count >= 10: break
 
         if not body.strip():
             body = "⚠️ No signals found in selected time range.\n"
@@ -270,16 +242,11 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     kb.row(types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"))
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
-    await message.answer(
-        f"<b>📊 LIVE SIGNALS GENERATED</b>\n\n"
-        f"<code>{report_content}</code>",
-        parse_mode="HTML",
-        reply_markup=kb.as_markup()
-    )
+    await message.answer(f"<b>📊 LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
-    await callback.answer("✅ Copied! Long press the signals message to copy.", show_alert=True)
+    await callback.answer("✅ Signals copied! Long press above message.", show_alert=True)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
@@ -296,9 +263,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.delete()
-    await bot.send_message(callback.from_user.id, 
-        "<code>APX PRIME TERMINAL CLOSED\nSession terminated securely.</code>", 
-        parse_mode="HTML")
+    await bot.send_message(callback.from_user.id, "<code>APX PRIME TERMINAL CLOSED\nSession terminated securely.</code>", parse_mode="HTML")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
