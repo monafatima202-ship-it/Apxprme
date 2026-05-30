@@ -18,7 +18,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {} 
 
-# ====================== PAIRS DATA ======================
+# ====================== PAIRS & STRATEGIES ======================
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -28,6 +28,14 @@ PAIRS_DATA = {
     "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
     "AAPL": "🇺🇸🍎 AAPL-OTC", "MSFT": "🇺🇸💻 MSFT-OTC", "PFE": "🇺🇸💊 PFE-OTC", 
     "JNJ": "🇺🇸🏥 JNJ-OTC", "MCD": "🇺🇸🍔 MCD-OTC", "INTL": "🇺🇸🔬 INTL-OTC"
+}
+
+STRATEGIES = {
+    "1": "RSI + MA50",
+    "2": "MACD",
+    "3": "Bollinger Bands",
+    "4": "Stochastic Oscillator",
+    "5": "All Strategies Combined"
 }
 
 # ====================== DATABASE ======================
@@ -110,18 +118,25 @@ async def get_key(callback: types.CallbackQuery):
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     try:
-        provided_key = message.text.split()[1].strip()
+        provided_key = message.text.split(maxsplit=1)[1].strip()
     except:
-        return await message.answer("❌ Invalid format. Use: `/verify YOUR_KEY`")
+        return await message.answer("❌ Use format: `/verify YOUR_KEY`")
 
     conn = sqlite3.connect('apx_stable_v190.db')
-    row = conn.execute("SELECT temp_key FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
+    row = conn.execute("SELECT temp_key, is_vip, expiry FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
     conn.close()
 
     if not row or not row[0] or row[0] != provided_key:
-        return await message.answer("❌ **Invalid Key!**\nPlease get a new key.", parse_mode="HTML")
+        return await message.answer("❌ **Invalid Key!**\nPlease get a new key using button.", parse_mode="HTML")
 
-    # Activate
+    # Check if already active
+    if row[1] == 1 and row[2] != "NONE":
+        try:
+            exp = datetime.datetime.strptime(row[2], "%Y-%m-%d %H:%M:%S")
+            if datetime.datetime.now() < exp:
+                return await message.answer("✅ You already have active access!")
+        except: pass
+
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
@@ -131,13 +146,13 @@ async def verify_cmd(message: types.Message):
     await show_mode_selection(message)
 
 async def show_mode_selection(message: types.Message):
-    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None}
+    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None, "strategy": None}
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer(f"⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== PAIR SELECTION ======================
+# ====================== PAIR + STRATEGY + DAYS FLOW ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -153,7 +168,7 @@ async def render_grid(callback: types.CallbackQuery):
         builder.add(types.InlineKeyboardButton(text=f"{status} {display}", callback_data=f"sel:{code}"))
     builder.adjust(2)
     if sel:
-        builder.row(types.InlineKeyboardButton(text="🚀 CONNECT TO LIVE API", callback_data="ask_time"))
+        builder.row(types.InlineKeyboardButton(text="🚀 NEXT → STRATEGY", callback_data="select_strategy"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="back_to_mode"))
     try:
         await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
@@ -172,10 +187,28 @@ async def toggle_pair(callback: types.CallbackQuery):
     await callback.answer("✅ Updated")
     await render_grid(callback)
 
-@dp.callback_query(F.data == "back_to_mode")
-async def back_to_mode(callback: types.CallbackQuery):
+@dp.callback_query(F.data == "select_strategy")
+async def select_strategy(callback: types.CallbackQuery):
     await callback.answer()
-    await show_mode_selection(callback.message)
+    kb = InlineKeyboardBuilder()
+    for key, name in STRATEGIES.items():
+        kb.row(types.InlineKeyboardButton(text=f"{key}️⃣ {name}", callback_data=f"strat:{key}"))
+    await callback.message.edit_caption(caption="📈 <b>Select AI Trading Strategy:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data.startswith("strat:"))
+async def set_strategy(callback: types.CallbackQuery):
+    await callback.answer()
+    user_ctx[callback.from_user.id]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
+    kb = InlineKeyboardBuilder()
+    for i in [1,3,5,7,10,15,30]:
+        kb.row(types.InlineKeyboardButton(text=f"{i} Days", callback_data=f"days:{i}"))
+    await callback.message.edit_caption(caption="📅 <b>Select Analysis Days:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data.startswith("days:"))
+async def set_days(callback: types.CallbackQuery):
+    await callback.answer()
+    user_ctx[callback.from_user.id]["days"] = int(callback.data.split(":")[1])
+    await ask_time(callback)
 
 @dp.callback_query(F.data == "ask_time")
 async def ask_time(callback: types.CallbackQuery):
@@ -217,6 +250,8 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
         header = "🎴 <b>APX PRIME LIVE SIGNALS</b>\n"
         header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
+        header += f"📊 Strategy: {data.get('strategy', 'Default')}\n"
+        header += f"📅 Analysis Days: {data.get('days', 'N/A')}\n"
         header += "━━━━━━━━━━━━━━━━━━━━━━\n"
 
         signals = []
@@ -259,6 +294,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
     await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
+# ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
     await callback.answer("✅ Signals Copied!", show_alert=True)
