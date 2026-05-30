@@ -48,7 +48,7 @@ async def start_handler(message: types.Message):
     
     await message.answer_photo(photo=BANNER_URL, caption="<b>🔒 APX PRIME OS v190.0</b>\n\n<i>TRADE SMART. STAY AHEAD.</i>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== AUTH & KEY ======================
+# ====================== AUTH ======================
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     uid = callback.from_user.id
@@ -105,7 +105,7 @@ async def show_mode_selection(message: types.Message):
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer("⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== PAIR SELECTION (Fixed) ======================
+# ====================== MULTI PAIR SELECTION ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -143,7 +143,7 @@ async def toggle_pair(callback: types.CallbackQuery):
     elif len(user_ctx[uid]["pairs"]) < limit:
         user_ctx[uid]["pairs"].append(code)
 
-    await callback.answer("✅ Updated!" if code in user_ctx[uid]["pairs"] else "❌ Removed", show_alert=False)
+    await callback.answer("✅ Selected!" if code in user_ctx[uid]["pairs"] else "❌ Removed")
     await render_grid(callback)
 
 @dp.callback_query(F.data == "back_to_mode")
@@ -156,7 +156,7 @@ async def ask_time(callback: types.CallbackQuery):
     await callback.answer()
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>14:00</code>)", parse_mode="HTML")
+    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>15:00</code>)", parse_mode="HTML")
 
 # ====================== TIME HANDLER ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
@@ -167,29 +167,29 @@ async def handle_times(message: types.Message):
     if user_ctx[uid]["step"] == "start_t":
         user_ctx[uid]["start_t"] = message.text
         user_ctx[uid]["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>16:00</code>)", parse_mode="HTML")
+        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>18:00</code>)", parse_mode="HTML")
     elif user_ctx[uid]["step"] == "end_t":
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== STYLISH LOADING + SIGNAL ENGINE ======================
+# ====================== STYLISH SIGNAL ENGINE ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
     if not data or not data.get("pairs"):
-        return await message.answer("⚠️ Please select at least one pair first.")
+        return await message.answer("⚠️ Please select assets first.")
 
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        # Stylish Loading
-        load = await message.answer("🌐 <b>CONNECTING TO APX PRIME API</b>\n<code>▁▁▁▁▁▁ 0%</code>", parse_mode="HTML")
-        await asyncio.sleep(0.8)
-        await load.edit_text("🌐 <b>CONNECTING TO APX PRIME API</b>\n<code>▃▃▁▁▁▁ 30%</code>", parse_mode="HTML")
-        await asyncio.sleep(0.8)
-        await load.edit_text("🌐 <b>CONNECTING TO APX PRIME API</b>\n<code>▅▅▅▁▁▁ 60%</code>", parse_mode="HTML")
-        await asyncio.sleep(0.8)
-        await load.edit_text("🌐 <b>CONNECTING TO APX PRIME API</b>\n<code>▇▇▇▇▁▁ 85%</code>", parse_mode="HTML")
+        # 🔥 STYLISH COLORFUL LOADING
+        load = await message.answer("🌐 <b>APX PRIME API CONNECTING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
+        await asyncio.sleep(0.7)
+        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓░░░░░░░░ 40%</code> 🔥", parse_mode="HTML")
+        await asyncio.sleep(0.7)
+        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓▓▓▓░░░░░ 70%</code> ⚡", parse_mode="HTML")
+        await asyncio.sleep(0.7)
+        await load.edit_text("🌐 <b>APX PRIME API CONNECTING</b>\n<code>▓▓▓▓▓▓▓░░░ 90%</code> 🚀", parse_mode="HTML")
         await asyncio.sleep(0.6)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
@@ -228,9 +228,9 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         await load.delete()
 
         if not body.strip():
-            body = "⚠️ No signals available in this time range right now.\n"
+            body = "⚠️ No signals in selected time range.\n"
 
-        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>1 Min • 1 Step Martingale • Live API</i>"
+        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot</i>"
         report_content = header + body + footer
         data["last_report"] = report_content
 
@@ -240,15 +240,15 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     kb.row(types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"))
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
-    await message.answer(f"<b>📊 LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
+    await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
-    await callback.answer("✅ Signals copied to clipboard!", show_alert=True)
+    await callback.answer("✅ Signals Copied!", show_alert=True)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("🔄 Regenerating fresh signals...")
+    await callback.answer("🔄 Generating Fresh Signals...")
     await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "change_pair_back")
@@ -261,7 +261,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.delete()
-    await bot.send_message(callback.from_user.id, "<code>APX PRIME TERMINAL CLOSED\nSecurely Disconnected.</code>", parse_mode="HTML")
+    await bot.send_message(callback.from_user.id, "<code>APX PRIME TERMINAL CLOSED\nSecure Session Terminated.</code>", parse_mode="HTML")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
