@@ -18,7 +18,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {} 
 
-# ====================== PAIRS DATA (With USA + Country Flags) ======================
+# ====================== PAIRS DATA ======================
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", 
     "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", 
@@ -136,7 +136,7 @@ async def get_key(callback: types.CallbackQuery):
     await callback.message.answer(
         f"🔑 <b>TEMPORARY ACCESS KEY</b>\n\n"
         f"<code>{key}</code>\n\n"
-        f"Copy aur bhejo:\n<code>/verify {key}</code>",
+        f"Copy and send:\n<code>/verify {key}</code>",
         parse_mode="HTML"
     )
 
@@ -149,9 +149,9 @@ async def verify_cmd(message: types.Message):
     conn.close()
     
     await message.answer("✅ <b>7 DAYS ACCESS ACTIVATED SUCCESSFULLY!</b>", parse_mode="HTML")
-    await init_term_after_verify(message)
+    await show_mode_selection(message)
 
-async def init_term_after_verify(message: types.Message):
+async def show_mode_selection(message: types.Message):
     user_ctx[message.from_user.id] = {"pairs": [], "last_report": None}
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
@@ -188,7 +188,11 @@ async def render_grid(callback: types.CallbackQuery):
         builder.row(types.InlineKeyboardButton(text="🚀 CONNECT TO LIVE API", callback_data="ask_time"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="init_term"))
     
-    await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
+    await callback.message.edit_caption(
+        caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", 
+        parse_mode="HTML", 
+        reply_markup=builder.as_markup()
+    )
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_pair(callback: types.CallbackQuery):
@@ -209,17 +213,19 @@ async def ask_time(callback: types.CallbackQuery):
     await callback.answer()
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>Enter Start Time</b> (Format: <code>14:00</code>)", parse_mode="HTML")
+    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>14:00</code>)", parse_mode="HTML")
 
+# ====================== TIME HANDLER ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
     uid = message.from_user.id
-    if uid not in user_ctx: return
+    if uid not in user_ctx or "step" not in user_ctx[uid]:
+        return
 
     if user_ctx[uid]["step"] == "start_t":
         user_ctx[uid]["start_t"] = message.text
         user_ctx[uid]["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time</b> (Format: <code>16:00</code>)", parse_mode="HTML")
+        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>16:00</code>)", parse_mode="HTML")
     elif user_ctx[uid]["step"] == "end_t":
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
@@ -290,7 +296,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
-    await callback.answer("✅ Signals copied! Long press & copy from above.", show_alert=True)
+    await callback.answer("✅ Signals copied! Long press on the message above to copy.", show_alert=True)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
@@ -301,11 +307,9 @@ async def regen_sig(callback: types.CallbackQuery):
 async def change_pair_back(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.delete()
-    user_ctx[callback.from_user.id] = {"pairs": [], "last_report": None, "mode": user_ctx.get(callback.from_user.id, {}).get("mode", "single")}
-    kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
-    kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
-    await bot.send_message(callback.from_user.id, "⚡ <b>Select Mode Again:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+    uid = callback.from_user.id
+    user_ctx[uid] = {"pairs": [], "last_report": None, "mode": user_ctx.get(uid, {}).get("mode", "single")}
+    await show_mode_selection(callback.message)
 
 @dp.callback_query(F.data == "exit_sys")
 async def exit_sys(callback: types.CallbackQuery):
