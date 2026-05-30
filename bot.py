@@ -1,8 +1,8 @@
 import os
 import asyncio
 import datetime
-import random
 import sqlite3
+import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -13,11 +13,12 @@ ADMIN_ID = 6507462873
 CHANNEL_USERNAME = "@vectabot1"
 BANNER_URL = "https://raw.githubusercontent.com/monafatima202-ship-it/apx-otc-api/main/apxprime.png"
 
-# HTML Mode is CRITICAL for Click-to-Copy
+# HTML Mode Active for Tap-to-Copy
 bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 user_ctx = {} 
 
+# HARD-CODED DUAL FLAGS (API-COMPATIBLE KEYS)
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -31,7 +32,7 @@ PAIRS_DATA = {
 
 # ====================== DATABASE ======================
 def init_db():
-    conn = sqlite3.connect('apx_final_v150.db')
+    conn = sqlite3.connect('apx_live_v160.db')
     conn.execute('''CREATE TABLE IF NOT EXISTS users 
                  (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0, key_taken INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
@@ -42,19 +43,19 @@ async def start_handler(message: types.Message):
     init_db()
     uid = message.from_user.id
     try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, uid)
-        if member.status in ["left", "kicked"]:
+        chat = await bot.get_chat_member(CHANNEL_USERNAME, uid)
+        if chat.status in ["left", "kicked"]:
             kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
             kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY ACCESS", callback_data="auth_check"))
-            return await message.answer_photo(photo=BANNER_URL, caption="<b>🛡️ ACCESS DENIED</b>\nPlease join @vectabot1 to unlock the terminal.", reply_markup=kb.as_markup())
+            return await message.answer_photo(photo=BANNER_URL, caption="<b>🛡️ ACCESS DENIED</b>\nPlease join @vectabot1 first to unlock terminal.", reply_markup=kb.as_markup())
     except: pass
     await show_dashboard(message)
 
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, callback.from_user.id)
-        if member.status not in ["left", "kicked"]:
+        chat = await bot.get_chat_member(CHANNEL_USERNAME, callback.from_user.id)
+        if chat.status not in ["left", "kicked"]:
             await callback.message.delete()
             await bot.send_message(callback.from_user.id, "🎆")
             await asyncio.sleep(0.5)
@@ -66,7 +67,7 @@ async def show_dashboard(m_c):
     uid = m_c.from_user.id
     msg = m_c if isinstance(m_c, types.Message) else m_c.message
     
-    conn = sqlite3.connect('apx_final_v150.db')
+    conn = sqlite3.connect('apx_live_v160.db')
     u = conn.execute("SELECT expiry, is_vip, key_taken FROM users WHERE uid = ?", (uid,)).fetchone()
     conn.close()
     
@@ -85,18 +86,17 @@ async def show_dashboard(m_c):
     else:
         kb.row(types.InlineKeyboardButton(text="🔒 ACCESS EXPIRED", callback_data="profile"))
 
-    kb.row(types.InlineKeyboardButton(text="👤 PROFILE", callback_data="profile"), 
-           types.InlineKeyboardButton(text="📜 RULES", callback_data="rules"))
+    kb.row(types.InlineKeyboardButton(text="👤 PROFILE", callback_data="profile"), types.InlineKeyboardButton(text="📜 RULES", callback_data="rules"))
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     caption = (
-        f"🌌 <b>APX PRIME OS v150.0</b> 🌌\n"
+        f"🌌 <b>APX PRIME OS v160.0</b> 🌌\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🕹️ <b>TRADER:</b> <code>{m_c.from_user.first_name}</code>\n"
-        f"📡 <b>STATUS:</b> ✅ <b>ACTIVE</b>\n"
+        f"📡 <b>STATUS:</b> ✅ <b>LIVE API SINC</b>\n"
         f"🕰️ <b>PKT TIME:</b> <code>{pkt}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"Institutional Nodes: 🟢 <b>Stable</b>"
+        f"Institutional Nodes: 🟢 <b>Connected</b>"
     )
     if isinstance(m_c, types.Message): await m_c.answer_photo(photo=BANNER_URL, caption=caption, reply_markup=kb.as_markup())
     else: await msg.edit_caption(caption=caption, reply_markup=kb.as_markup())
@@ -108,7 +108,7 @@ async def init_term(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
-    await callback.message.edit_caption(caption="⚡ <b>SELECT MODE:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_caption(caption="⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
@@ -120,27 +120,27 @@ async def render_grid(callback: types.CallbackQuery):
     sel = user_ctx[uid]["pairs"]
     builder = InlineKeyboardBuilder()
     for code, display in PAIRS_DATA.items():
-        text = f"✅ {display}" if display in sel else f"💠 {display}"
-        builder.add(types.InlineKeyboardButton(text=text, callback_data=f"sel:{display}"))
-    builder.adjust(2)
-    if sel: builder.row(types.InlineKeyboardButton(text="🚀 NEURAL SCAN", callback_data="ask_time"))
+        text = f"✅ {code}" if code in sel else f"💠 {code}"
+        builder.add(types.InlineKeyboardButton(text=text, callback_data=f"sel:{code}"))
+    builder.adjust(2) 
+    if sel: builder.row(types.InlineKeyboardButton(text="🚀 CONNECT TO LIVE API", callback_data="ask_time"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="init_term"))
-    await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS:</b>", reply_markup=builder.as_markup())
+    await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_p(callback: types.CallbackQuery):
     uid = callback.from_user.id
-    pair = callback.data.split(":")[1]
+    code = callback.data.split(":")[1]
     limit = 3 if user_ctx[uid]["mode"] == "multi" else 1
-    if pair in user_ctx[uid]["pairs"]: user_ctx[uid]["pairs"].remove(pair)
-    elif len(user_ctx[uid]["pairs"]) < limit: user_ctx[uid]["pairs"].append(pair)
+    if code in user_ctx[uid]["pairs"]: user_ctx[uid]["pairs"].remove(code)
+    elif len(user_ctx[uid]["pairs"]) < limit: user_ctx[uid]["pairs"].append(code)
     await render_grid(callback)
 
 @dp.callback_query(F.data == "ask_time")
 async def ask_time(callback: types.CallbackQuery):
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>TIME PROTOCOL</b>\nSend Start Time (e.g. <code>14:00</code>)")
+    await callback.message.answer("🕒 <b>LIVE PROTOCOL</b>\nSend Start Time (e.g. <code>14:00</code>)")
 
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
@@ -149,12 +149,13 @@ async def handle_times(message: types.Message):
     if user_ctx[uid]["step"] == "start_t":
         user_ctx[uid]["start_t"] = message.text
         user_ctx[uid]["step"] = "end_t"
-        await message.answer("🕒 <b>TIME PROTOCOL</b>\nSend End Time (e.g. <code>16:00</code>)")
+        await message.answer("🕒 <b>LIVE PROTOCOL</b>\nSend End Time (e.g. <code>16:00</code>)")
     elif user_ctx[uid]["step"] == "end_t":
         user_ctx[uid]["end_t"] = message.text
-        await execute_signals(message)
+        await execute_live_signals(message)
 
-async def execute_signals(message: types.Message, is_regen=False):
+# ====================== LIVE API FETCH & FILTER ENGINE ======================
+async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id if isinstance(message, types.Message) else message.from_user.id
     msg_obj = message if isinstance(message, types.Message) else message.message
     data = user_ctx[uid]
@@ -162,22 +163,44 @@ async def execute_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        load = await msg_obj.answer("📡 <b>SCANNING...</b>")
-        await asyncio.sleep(1)
+        load = await msg_obj.answer("📡 <b>CONNECTING TO LIVE OTC API...</b>")
         
-        # --- BUILDING THE SIGNAL REPORT ---
-        header = "🀄️ UTC/GMT : ( +5:00 ) 🇵🇰\n🀄️ 1STEP MARTINGALE\n🀄️ 1MINUTE TIMEFRAME\n\n"
+        header = "🀄️ UTC/GMT : ( +6:00 ) 🇧🇩\n🀄️ 1STEP MARTINGALE\n🀄️ 1MINUTE TIMEFRAME\n\n"
         body = ""
-        start = datetime.datetime.strptime(data['start_t'], "%H:%M")
-        end = datetime.datetime.strptime(data['end_t'], "%H:%M")
-        curr = start
-        while curr < end:
-            for p in data["pairs"]:
-                p_clean = p.split(' ')[1].replace("-OTC", "")
-                body += f"⧉ {p_clean:10} - {curr.strftime('%H:%M')} ⇨ {random.choice(['PUT ', 'BUY '])}\n"
-            curr += datetime.timedelta(minutes=random.randint(9, 14))
         
-        footer = "\nRULES ‼️\n- DO NOT TRADE IN MARKET < 80%\n- USE SAFETY MARGIN\n"
+        start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
+        end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
+
+        async with aiohttp.ClientSession() as session:
+            # Loop through selected pairs to fetch data from live URL
+            for pair_code in data["pairs"]:
+                api_url = f"https://milongazi197.serv00.net/f/api.php?pair={pair_code}-OTC&count=100"
+                try:
+                    async with session.get(api_url, timeout=10) as response:
+                        if response.status == 200:
+                            lines = (await response.text()).split('\n')
+                            for line in lines:
+                                if not line.strip() or "|" not in line: continue
+                                
+                                # Sample parsing based on API text format
+                                parts = line.split('|')
+                                if len(parts) >= 2:
+                                    sig_time_str = parts[0].strip() # Expected "12:53"
+                                    sig_dir = parts[1].strip().upper() # Expected "PUT" or "BUY"
+                                    
+                                    try:
+                                        sig_time = datetime.datetime.strptime(sig_time_str, "%H:%M").time()
+                                        # Filter signals within the user selected range
+                                        if start_time <= sig_time <= end_time:
+                                            body += f"⧉ {pair_code:8}-OTC - {sig_time_str} ⇨ {sig_dir}\n"
+                                    except: pass
+                except Exception as e:
+                    print(f"API Fetch Error for {pair_code}: {e}")
+
+        if not body:
+            body = "⚠️ No live signals found in this time range.\n"
+
+        footer = "\nRULES ‼️\n- DO NOT TRADE IN MARKET THAT ARE LESS THEN 80%\n- USE SEFTY MARGIN FOR BETTER ACCURACY\n"
         report_content = header + body + footer
         data["last_report"] = report_content
         await load.delete()
@@ -192,11 +215,11 @@ async def execute_signals(message: types.Message, is_regen=False):
     if is_regen: await msg_obj.edit_text(final_msg, reply_markup=kb)
     else: await msg_obj.answer(final_msg, reply_markup=kb)
 
-# ====================== KEY & EXIT ======================
+# ====================== KEY & SYSTEM BUTTONS ======================
 @dp.callback_query(F.data == "get_key")
 async def get_key(callback: types.CallbackQuery):
     key = f"APX-{random.randint(1000, 9999)}-VIP"
-    conn = sqlite3.connect('apx_final_v150.db')
+    conn = sqlite3.connect('apx_live_v160.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
     conn.commit(); conn.close()
     await callback.message.answer(f"🔑 <b>TAP TO COPY KEY:</b>\n\n<code>/verify {key}</code>")
@@ -204,14 +227,14 @@ async def get_key(callback: types.CallbackQuery):
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect('apx_final_v150.db')
+    conn = sqlite3.connect('apx_live_v160.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
     await message.answer("✅ <b>AUTHORIZED</b>"); await start_handler(message)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("Showing cached data..."); await execute_signals(callback, is_regen=True)
+    await callback.answer("Fetching live data from cache..."); await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "exit_sys")
 async def exit_cb(callback: types.CallbackQuery):
