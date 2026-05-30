@@ -18,7 +18,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {} 
 
-# ====================== PAIRS DATA ======================
+# ====================== PAIRS DATA (All Pairs) ======================
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -26,6 +26,8 @@ PAIRS_DATA = {
     "BTCUSD": "₿🌐 BTCUSD-OTC", "USDTRY": "🇺🇸🇹🇷 USDTRY-OTC", "USDBRL": "🇺🇸🇧🇷 USDBRL-OTC",
     "NZDUSD": "🇳🇿🇺🇸 NZDUSD-OTC", "AUDUSD": "🇦🇺🇺🇸 AUDUSD-OTC", "USDCHF": "🇺🇸🇨🇭 USDCHF-OTC", 
     "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
+    "AAPL": "🇺🇸🍎 AAPL-OTC", "MSFT": "🇺🇸💻 MSFT-OTC", "PFE": "🇺🇸💊 PFE-OTC", 
+    "JNJ": "🇺🇸🏥 JNJ-OTC", "MCD": "🇺🇸🍔 MCD-OTC", "INTL": "🇺🇸🔬 INTL-OTC"
 }
 
 # ====================== DATABASE ======================
@@ -42,13 +44,13 @@ async def auto_broadcast():
         now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)
         hour = now.hour
         if hour == 7:
-            msg = "🌅 <b>NEW TRADING DAY ACTIVATED</b>\nAPX PRIME OS v190.0 is now live. Good Morning!"
+            msg = "🌅 <b>NEW TRADING DAY ACTIVATED</b>\nAPX PRIME OS v190.0 is now live. Good Morning Traders! 🚀"
         elif hour == 12:
-            msg = "⚙️ <b>OPTIMIZATION MODE ACTIVE</b>\nSystem cooling & optimizing."
+            msg = "⚙️ <b>OPTIMIZATION MODE</b>\nSystem cooling for better performance."
         elif hour == 17:
             msg = "🔧 <b>MAINTENANCE WINDOW</b>\nShort maintenance in progress."
         elif hour == 0:
-            msg = "🌙 <b>SYSTEM SLEEP MODE</b>\nSee you tomorrow traders!"
+            msg = "🌙 <b>SYSTEM SLEEP MODE</b>\nSee you tomorrow!"
         else:
             await asyncio.sleep(60)
             continue
@@ -66,7 +68,7 @@ async def start_handler(message: types.Message):
     kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY MEMBERSHIP", callback_data="auth_check"))
     await message.answer_photo(photo=BANNER_URL, caption="<b>🔒 APX PRIME OS v190.0</b>\n\n<i>TRADE SMART. STAY AHEAD.</i>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== AUTH CHECK (7 DAYS EXPIRY FIXED) ======================
+# ====================== AUTH ======================
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     uid = callback.from_user.id
@@ -93,7 +95,7 @@ async def auth_check(callback: types.CallbackQuery):
             else:
                 kb = InlineKeyboardBuilder()
                 kb.row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
-                await bot.send_photo(uid, BANNER_URL, caption="<b>🌌 APX PRIME OS v190.0</b>\n\n<b>7 Days Trial Available</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+                await bot.send_photo(uid, BANNER_URL, caption="<b>🌌 APX PRIME OS v190.0</b>\n\n7 Days Trial Available", parse_mode="HTML", reply_markup=kb.as_markup())
         else:
             await callback.answer("❌ Join channel first!", show_alert=True)
     except:
@@ -106,7 +108,7 @@ async def get_key(callback: types.CallbackQuery):
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
     conn.commit(); conn.close()
-    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend:\n<code>/verify {key}</code>", parse_mode="HTML")
+    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>", parse_mode="HTML")
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
@@ -114,7 +116,7 @@ async def verify_cmd(message: types.Message):
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
-    await message.answer("✅ <b>7 DAYS ACCESS ACTIVATED SUCCESSFULLY!</b>\nValid until: " + exp[:10], parse_mode="HTML")
+    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED SUCCESSFULLY!</b>\nValid until: {exp[:10]}", parse_mode="HTML")
     await show_mode_selection(message)
 
 async def show_mode_selection(message: types.Message):
@@ -124,7 +126,7 @@ async def show_mode_selection(message: types.Message):
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer("⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== PAIR & SIGNAL PART (Same as before) ======================
+# ====================== PAIR SELECTION ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -170,8 +172,9 @@ async def ask_time(callback: types.CallbackQuery):
     await callback.answer()
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>18:00</code>)", parse_mode="HTML")
+    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>19:00</code>)", parse_mode="HTML")
 
+# ====================== TIME HANDLER ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
     uid = message.from_user.id
@@ -184,6 +187,7 @@ async def handle_times(message: types.Message):
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
+# ====================== STYLISH & COLORFUL LOADING + SIGNALS ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -193,10 +197,14 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        load = await message.answer("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
-        for p in ["40%", "70%", "95%"]:
-            await asyncio.sleep(0.7)
-            await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓▓▓░░░░░░ {p}</code> ⚡", parse_mode="HTML")
+        # 🔥 Super Stylish Colorful Loading
+        load = await message.answer("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
+        await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓░░░░░░░░ 40%</code> 🔥", parse_mode="HTML")
+        await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓▓▓▓░░░░░ 70%</code> ⚡", parse_mode="HTML")
+        await asyncio.sleep(0.6)
+        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓▓▓▓▓▓░░░ 95%</code> 🚀", parse_mode="HTML")
         await asyncio.sleep(0.5)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
@@ -228,7 +236,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                 except: pass
 
         signals.sort(key=lambda x: x[0])
-        body = "\n".join([f"🔹 <b>{pair}</b> → {t_str} ⇨ <b>{direction}</b>" for _, pair, direction, t_str in signals[:20]])
+        body = "\n".join([f"🔹 <b>{pair}</b> → {t_str} ⇨ <b>{direction}</b>" for _, pair, direction, t_str in signals[:25]])
 
         if not body:
             body = "⚠️ No signals found in selected time range.\n"
@@ -246,15 +254,15 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
     await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== MANUAL BROADCAST ======================
+# ====================== MANUAL BROADCAST (ONLY IN BOT) ======================
 @dp.message(Command("broadcast"))
 async def manual_broadcast(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return
+        return await message.answer("❌ Admin only.")
     text = message.text.split(maxsplit=1)
-    if len(text) < 2: return await message.answer("Usage: /broadcast message")
-    await bot.send_message(CHANNEL_USERNAME, text[1], parse_mode="HTML")
-    await message.answer("✅ Broadcast sent!")
+    if len(text) < 2:
+        return await message.answer("Usage: /broadcast Your message here")
+    await message.answer(f"✅ <b>Broadcast Sent in Bot Chat:</b>\n\n{text[1]}", parse_mode="HTML")
 
 # ====================== MAIN ======================
 async def main():
