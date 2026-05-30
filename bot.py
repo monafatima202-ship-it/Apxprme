@@ -46,23 +46,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ====================== AUTO BROADCAST (Sirf Bot) ======================
-async def auto_broadcast():
-    while True:
-        now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)
-        hour = now.hour
-        if hour == 7: msg = "🌅 <b>NEW TRADING DAY ACTIVATED</b>\nGood Morning Traders! 🚀"
-        elif hour == 12: msg = "⚙️ <b>OPTIMIZATION MODE</b>\nSystem cooling..."
-        elif hour == 17: msg = "🔧 <b>MAINTENANCE WINDOW</b>\nShort maintenance..."
-        elif hour == 0: msg = "🌙 <b>SYSTEM SLEEP MODE</b>\nSee you tomorrow!"
-        else:
-            await asyncio.sleep(60)
-            continue
-        try:
-            await bot.send_message(ADMIN_ID, f"🔔 <b>AUTO UPDATE:</b>\n{msg}", parse_mode="HTML")
-        except: pass
-        await asyncio.sleep(3600)
-
 # ====================== START ======================
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
@@ -126,18 +109,18 @@ async def verify_cmd(message: types.Message):
     conn.close()
 
     if not row or not row[0] or row[0] != provided_key:
-        return await message.answer("❌ **Invalid Key!**\nPlease get a new key.", parse_mode="HTML")
+        return await message.answer("❌ **Invalid Key!**", parse_mode="HTML")
 
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
 
-    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED SUCCESSFULLY!</b>\nValid until: {exp[:10]}", parse_mode="HTML")
+    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: {exp[:10]}", parse_mode="HTML")
     await show_mode_selection(message)
 
 async def show_mode_selection(message: types.Message):
-    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None, "strategy": None, "days": None}
+    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None, "strategy": None}
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
@@ -190,15 +173,6 @@ async def select_strategy(callback: types.CallbackQuery):
 async def set_strategy(callback: types.CallbackQuery):
     await callback.answer()
     user_ctx[callback.from_user.id]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
-    kb = InlineKeyboardBuilder()
-    for i in [1,3,5,7,10,15,30]:
-        kb.row(types.InlineKeyboardButton(text=f"{i} Days", callback_data=f"days:{i}"))
-    await callback.message.edit_caption(caption="📅 <b>Select Number of Days to Analyze:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data.startswith("days:"))
-async def set_days(callback: types.CallbackQuery):
-    await callback.answer()
-    user_ctx[callback.from_user.id]["days"] = int(callback.data.split(":")[1])
     await ask_time(callback)
 
 @dp.callback_query(F.data == "ask_time")
@@ -242,7 +216,6 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         header = "🎴 <b>APX PRIME LIVE SIGNALS</b>\n"
         header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
         header += f"📊 Strategy: {data.get('strategy', 'Default')}\n"
-        header += f"📅 Days: {data.get('days', 'N/A')}\n"
         header += "━━━━━━━━━━━━━━━━━━━━━━\n"
 
         signals = []
@@ -272,19 +245,20 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         if not body:
             body = "⚠️ No signals found in selected time range.\n"
 
-        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot • 80%+ Accuracy</i>"
+        footer = "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot</i>"
         report_content = header + body + footer
         data["last_report"] = report_content
         await load.delete()
 
     kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE SIGNALS", callback_data="regen_sig"))
+    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE", callback_data="regen_sig"))
     kb.row(types.InlineKeyboardButton(text="📋 COPY SIGNALS", callback_data="copy_signals"))
     kb.row(types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"))
     kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
+# ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
     await callback.answer("✅ Signals Copied!", show_alert=True)
@@ -308,7 +282,6 @@ async def exit_sys(callback: types.CallbackQuery):
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    asyncio.create_task(auto_broadcast())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
