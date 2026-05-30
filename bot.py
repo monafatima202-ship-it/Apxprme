@@ -18,7 +18,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {} 
 
-# ====================== PAIRS DATA (All Pairs) ======================
+# ====================== PAIRS DATA ======================
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC", 
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -66,9 +66,9 @@ async def start_handler(message: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
     kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY MEMBERSHIP", callback_data="auth_check"))
-    await message.answer_photo(photo=BANNER_URL, caption="<b>🔒 APX PRIME OS v190.0</b>\n\n<i>TRADE SMART. STAY AHEAD.</i>", parse_mode="HTML", reply_markup=kb.as_markup())
+    await message.answer_photo(photo=BANNER_URL, caption=f"<b>🔒 APX PRIME OS v190.0</b>\n\nWelcome <b>{message.from_user.first_name}</b> 👋\nTrade Smart. Stay Ahead.", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== AUTH ======================
+# ====================== AUTH CHECK (Improved) ======================
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     uid = callback.from_user.id
@@ -83,11 +83,13 @@ async def auth_check(callback: types.CallbackQuery):
             conn.close()
 
             is_active = False
+            expiry_str = None
             if u and u[1] == 1 and u[0] != "NONE":
                 try:
                     exp = datetime.datetime.strptime(u[0], "%Y-%m-%d %H:%M:%S")
                     if datetime.datetime.now() < exp:
                         is_active = True
+                        expiry_str = u[0][:10]
                 except: pass
 
             if is_active:
@@ -95,7 +97,10 @@ async def auth_check(callback: types.CallbackQuery):
             else:
                 kb = InlineKeyboardBuilder()
                 kb.row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
-                await bot.send_photo(uid, BANNER_URL, caption="<b>🌌 APX PRIME OS v190.0</b>\n\n7 Days Trial Available", parse_mode="HTML", reply_markup=kb.as_markup())
+                caption = f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>!\n7 Days Trial Available"
+                if not is_active and u and u[1] == 1:
+                    caption += "\n\n<b>⚠️ Previous Access Expired</b>\nContact Admin for renewal."
+                await bot.send_photo(uid, BANNER_URL, caption=caption, parse_mode="HTML", reply_markup=kb.as_markup())
         else:
             await callback.answer("❌ Join channel first!", show_alert=True)
     except:
@@ -104,8 +109,16 @@ async def auth_check(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "get_key")
 async def get_key(callback: types.CallbackQuery):
     await callback.answer()
-    key = f"APX-{random.randint(1000,9999)}-{random.randint(1000,9999)}"
     conn = sqlite3.connect('apx_stable_v190.db')
+    u = conn.execute("SELECT is_vip, expiry FROM users WHERE uid = ?", (callback.from_user.id,)).fetchone()
+    if u and u[0] == 1:
+        try:
+            exp = datetime.datetime.strptime(u[1], "%Y-%m-%d %H:%M:%S")
+            if datetime.datetime.now() < exp:
+                return await callback.message.answer("✅ You already have active access!")
+        except: pass
+
+    key = f"APX-{random.randint(1000,9999)}-{random.randint(1000,9999)}"
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, key_taken) VALUES (?, ?, 0, 1)", (callback.from_user.id, "NONE"))
     conn.commit(); conn.close()
     await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>", parse_mode="HTML")
@@ -124,7 +137,7 @@ async def show_mode_selection(message: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
-    await message.answer("⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+    await message.answer(f"⚡ <b>SELECT OPERATIONAL MODE:</b>\nWelcome back, <b>{message.from_user.first_name}</b>!", parse_mode="HTML", reply_markup=kb.as_markup())
 
 # ====================== PAIR SELECTION ======================
 @dp.callback_query(F.data.startswith("m:"))
@@ -174,7 +187,7 @@ async def ask_time(callback: types.CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>19:00</code>)", parse_mode="HTML")
 
-# ====================== TIME HANDLER ======================
+# ====================== TIME & SIGNALS ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
     uid = message.from_user.id
@@ -187,7 +200,6 @@ async def handle_times(message: types.Message):
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== STYLISH & COLORFUL LOADING + SIGNALS ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -197,14 +209,10 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        # 🔥 Super Stylish Colorful Loading
-        load = await message.answer("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
-        await asyncio.sleep(0.6)
-        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓░░░░░░░░ 40%</code> 🔥", parse_mode="HTML")
-        await asyncio.sleep(0.6)
-        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓▓▓▓░░░░░ 70%</code> ⚡", parse_mode="HTML")
-        await asyncio.sleep(0.6)
-        await load.edit_text("🌌 <b>APX PRIME OS CONNECTING</b>\n<code>▓▓▓▓▓▓▓░░░ 95%</code> 🚀", parse_mode="HTML")
+        load = await message.answer("🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>░░░░░░░░░░ 0%</code> ✨", parse_mode="HTML")
+        for p in ["40%", "70%", "95%"]:
+            await asyncio.sleep(0.7)
+            await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓▓▓░░░░░░ {p}</code> ⚡", parse_mode="HTML")
         await asyncio.sleep(0.5)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
@@ -254,17 +262,37 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
     await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== MANUAL BROADCAST (ONLY IN BOT) ======================
+@dp.callback_query(F.data == "copy_signals")
+async def copy_signals(callback: types.CallbackQuery):
+    await callback.answer("✅ Signals copied! Long press the message above.", show_alert=True)
+
+@dp.callback_query(F.data == "regen_sig")
+async def regen_sig(callback: types.CallbackQuery):
+    await callback.answer("🔄 Regenerating fresh signals...")
+    await execute_live_signals(callback, is_regen=True)
+
+@dp.callback_query(F.data == "change_pair_back")
+async def change_pair_back(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    await show_mode_selection(callback.message)
+
+@dp.callback_query(F.data == "exit_sys")
+async def exit_sys(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    await bot.send_message(callback.from_user.id, f"<code>APX PRIME TERMINAL CLOSED\n\nGoodbye {callback.from_user.first_name} 👋\nSecure Session Terminated.</code>", parse_mode="HTML")
+
+# ====================== MANUAL BROADCAST (Bot Only) ======================
 @dp.message(Command("broadcast"))
 async def manual_broadcast(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        return await message.answer("❌ Admin only.")
+        return
     text = message.text.split(maxsplit=1)
     if len(text) < 2:
-        return await message.answer("Usage: /broadcast Your message here")
-    await message.answer(f"✅ <b>Broadcast Sent in Bot Chat:</b>\n\n{text[1]}", parse_mode="HTML")
+        return await message.answer("Usage: /broadcast Your message")
+    await message.answer(f"✅ <b>Broadcast Sent:</b>\n\n{text[1]}", parse_mode="HTML")
 
-# ====================== MAIN ======================
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(auto_broadcast())
