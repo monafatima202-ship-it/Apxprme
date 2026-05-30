@@ -30,6 +30,15 @@ PAIRS_DATA = {
     "JNJ": "🇺🇸🏥 JNJ-OTC", "MCD": "🇺🇸🍔 MCD-OTC", "INTL": "🇺🇸🔬 INTL-OTC"
 }
 
+# ====================== STRATEGIES ======================
+STRATEGIES = {
+    "1": "RSI + MA50",
+    "2": "MACD",
+    "3": "Bollinger Bands",
+    "4": "Stochastic Oscillator",
+    "5": "All Strategies Combined"
+}
+
 # ====================== DATABASE ======================
 def init_db():
     conn = sqlite3.connect('apx_stable_v190.db')
@@ -43,19 +52,14 @@ async def auto_broadcast():
     while True:
         now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)
         hour = now.hour
-        if hour == 7:
-            msg = "🌅 <b>NEW TRADING DAY ACTIVATED</b>\nAPX PRIME OS v190.0 is now live. Good Morning Traders! 🚀"
-        elif hour == 12:
-            msg = "⚙️ <b>OPTIMIZATION MODE</b>\nSystem cooling for better performance."
-        elif hour == 17:
-            msg = "🔧 <b>MAINTENANCE WINDOW</b>\nShort maintenance in progress."
-        elif hour == 0:
-            msg = "🌙 <b>SYSTEM SLEEP MODE</b>\nSee you tomorrow!"
+        if hour == 7: msg = "🌅 <b>NEW TRADING DAY ACTIVATED</b>\nAPX PRIME OS v190.0 is now live. Good Morning Traders! 🚀"
+        elif hour == 12: msg = "⚙️ <b>OPTIMIZATION MODE</b>\nSystem cooling for better performance."
+        elif hour == 17: msg = "🔧 <b>MAINTENANCE WINDOW</b>\nShort maintenance in progress."
+        elif hour == 0: msg = "🌙 <b>SYSTEM SLEEP MODE</b>\nSee you tomorrow!"
         else:
             await asyncio.sleep(60)
             continue
-        try:
-            await bot.send_message(CHANNEL_USERNAME, msg, parse_mode="HTML")
+        try: await bot.send_message(CHANNEL_USERNAME, msg, parse_mode="HTML")
         except: pass
         await asyncio.sleep(3600)
 
@@ -66,9 +70,9 @@ async def start_handler(message: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
     kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY MEMBERSHIP", callback_data="auth_check"))
-    await message.answer_photo(photo=BANNER_URL, caption=f"<b>🔒 APX PRIME OS v190.0</b>\n\nWelcome <b>{message.from_user.first_name}</b> 👋\nTrade Smart. Stay Ahead.", parse_mode="HTML", reply_markup=kb.as_markup())
+    await message.answer_photo(photo=BANNER_URL, caption=f"<b>🔒 APX PRIME OS v190.0</b>\n\nWelcome <b>{message.from_user.first_name}</b> 👋", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== AUTH CHECK (Improved) ======================
+# ====================== AUTH & KEY (Strict) ======================
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     uid = callback.from_user.id
@@ -83,13 +87,11 @@ async def auth_check(callback: types.CallbackQuery):
             conn.close()
 
             is_active = False
-            expiry_str = None
             if u and u[1] == 1 and u[0] != "NONE":
                 try:
                     exp = datetime.datetime.strptime(u[0], "%Y-%m-%d %H:%M:%S")
                     if datetime.datetime.now() < exp:
                         is_active = True
-                        expiry_str = u[0][:10]
                 except: pass
 
             if is_active:
@@ -97,10 +99,7 @@ async def auth_check(callback: types.CallbackQuery):
             else:
                 kb = InlineKeyboardBuilder()
                 kb.row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
-                caption = f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>!\n7 Days Trial Available"
-                if not is_active and u and u[1] == 1:
-                    caption += "\n\n<b>⚠️ Previous Access Expired</b>\nContact Admin for renewal."
-                await bot.send_photo(uid, BANNER_URL, caption=caption, parse_mode="HTML", reply_markup=kb.as_markup())
+                await bot.send_photo(uid, BANNER_URL, caption=f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>!\n7 Days Trial Available", parse_mode="HTML", reply_markup=kb.as_markup())
         else:
             await callback.answer("❌ Join channel first!", show_alert=True)
     except:
@@ -133,13 +132,13 @@ async def verify_cmd(message: types.Message):
     await show_mode_selection(message)
 
 async def show_mode_selection(message: types.Message):
-    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None}
+    user_ctx[message.from_user.id] = {"pairs": [], "last_report": None, "strategy": None, "days": None}
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
     await message.answer(f"⚡ <b>SELECT OPERATIONAL MODE:</b>\nWelcome back, <b>{message.from_user.first_name}</b>!", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== PAIR SELECTION ======================
+# ====================== MODE & PAIR ======================
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
     await callback.answer()
@@ -155,13 +154,12 @@ async def render_grid(callback: types.CallbackQuery):
         builder.add(types.InlineKeyboardButton(text=f"{status} {display}", callback_data=f"sel:{code}"))
     builder.adjust(2)
     if sel:
-        builder.row(types.InlineKeyboardButton(text="🚀 CONNECT TO LIVE API", callback_data="ask_time"))
+        builder.row(types.InlineKeyboardButton(text="🚀 NEXT → STRATEGY", callback_data="select_strategy"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK", callback_data="back_to_mode"))
-    text = "🧪 <b>SELECT ASSETS (MAX 3):</b>"
     try:
-        await callback.message.edit_caption(caption=text, parse_mode="HTML", reply_markup=builder.as_markup())
+        await callback.message.edit_caption(caption="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
     except:
-        await callback.message.edit_text(text=text, parse_mode="HTML", reply_markup=builder.as_markup())
+        await callback.message.edit_text(text="🧪 <b>SELECT ASSETS (MAX 3):</b>", parse_mode="HTML", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_pair(callback: types.CallbackQuery):
@@ -180,12 +178,39 @@ async def back_to_mode(callback: types.CallbackQuery):
     await callback.answer()
     await show_mode_selection(callback.message)
 
+@dp.callback_query(F.data == "select_strategy")
+async def select_strategy(callback: types.CallbackQuery):
+    await callback.answer()
+    kb = InlineKeyboardBuilder()
+    for key, name in STRATEGIES.items():
+        kb.row(types.InlineKeyboardButton(text=f"{key}️⃣ {name}", callback_data=f"strat:{key}"))
+    await callback.message.edit_caption(caption="📈 <b>Select AI Trading Strategy:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data.startswith("strat:"))
+async def set_strategy(callback: types.CallbackQuery):
+    await callback.answer()
+    user_ctx[callback.from_user.id]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
+    await ask_days(callback)
+
+async def ask_days(callback: types.CallbackQuery):
+    kb = InlineKeyboardBuilder()
+    for i in range(1, 31, 5):
+        kb.row(types.InlineKeyboardButton(text=f"{i} Days", callback_data=f"days:{i}"))
+    kb.row(types.InlineKeyboardButton(text="Custom (Type)", callback_data="days:custom"))
+    await callback.message.edit_caption(caption="📅 <b>Select Analysis Days (0-30):</b>", parse_mode="HTML", reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data.startswith("days:"))
+async def set_days(callback: types.CallbackQuery):
+    await callback.answer()
+    user_ctx[callback.from_user.id]["days"] = callback.data.split(":")[1]
+    await ask_time(callback)
+
 @dp.callback_query(F.data == "ask_time")
 async def ask_time(callback: types.CallbackQuery):
     await callback.answer()
     user_ctx[callback.from_user.id]["step"] = "start_t"
     await callback.message.delete()
-    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>19:00</code>)", parse_mode="HTML")
+    await callback.message.answer("🕒 <b>Enter Start Time</b> (e.g. <code>16:00</code>)", parse_mode="HTML")
 
 # ====================== TIME & SIGNALS ======================
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
@@ -195,7 +220,7 @@ async def handle_times(message: types.Message):
     if user_ctx[uid]["step"] == "start_t":
         user_ctx[uid]["start_t"] = message.text
         user_ctx[uid]["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>22:00</code>)", parse_mode="HTML")
+        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>18:00</code>)", parse_mode="HTML")
     elif user_ctx[uid]["step"] == "end_t":
         user_ctx[uid]["end_t"] = message.text
         await execute_live_signals(message)
@@ -220,6 +245,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
         header = "🎴 <b>APX PRIME LIVE SIGNALS</b>\n"
         header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
+        header += f"📊 Strategy: {data.get('strategy', 'Default')}\n"
         header += "━━━━━━━━━━━━━━━━━━━━━━\n"
 
         signals = []
@@ -262,13 +288,14 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 
     await message.answer(f"<b>📊 APX LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
+# ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
-    await callback.answer("✅ Signals copied! Long press the message above.", show_alert=True)
+    await callback.answer("✅ Signals Copied!", show_alert=True)
 
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("🔄 Regenerating fresh signals...")
+    await callback.answer("🔄 Regenerating...")
     await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "change_pair_back")
@@ -281,17 +308,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.delete()
-    await bot.send_message(callback.from_user.id, f"<code>APX PRIME TERMINAL CLOSED\n\nGoodbye {callback.from_user.first_name} 👋\nSecure Session Terminated.</code>", parse_mode="HTML")
-
-# ====================== MANUAL BROADCAST (Bot Only) ======================
-@dp.message(Command("broadcast"))
-async def manual_broadcast(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    text = message.text.split(maxsplit=1)
-    if len(text) < 2:
-        return await message.answer("Usage: /broadcast Your message")
-    await message.answer(f"✅ <b>Broadcast Sent:</b>\n\n{text[1]}", parse_mode="HTML")
+    await bot.send_message(callback.from_user.id, f"<code>APX PRIME TERMINAL CLOSED\n\nGoodbye {callback.from_user.first_name} 👋</code>", parse_mode="HTML")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
