@@ -2,7 +2,6 @@ import os, asyncio, datetime, sqlite3, random, aiohttp, re
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 # ====================== CONFIGURATION ======================
@@ -11,8 +10,8 @@ ADMIN_ID = 6507462873
 CHANNEL_USERNAME = "@vectabot1"
 BANNER_URL = "https://raw.githubusercontent.com/monafatima202-ship-it/apx-otc-api/main/apxprime.png"
 
-# Strict Global HTML Property Mapping to prevent raw tags leakage
-bot = Bot(token=TOKEN, default_properties=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# Hardcore Bot Mapping to bypass property mismatch leaks
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 user_ctx = {}
 
@@ -72,7 +71,8 @@ async def start_handler(message: types.Message):
     
     await message.answer_photo(
         photo=BANNER_URL, 
-        caption=f"<b>💎 APX PRIME OS v250.0</b>\n<i>Quantum AI Production Terminal Initialized.</i>\n\nWelcome back, Operator: <b>{message.from_user.first_name}</b> 👑\n\n<code>🚨 SECURE COLD STATUS ACTIVE. ENGAGE VERIFICATION SCAN.</code>", 
+        caption=f"<b>💎 APX PRIME OS v260.0</b>\n<i>Quantum AI Production Terminal Initialized.</i>\n\nWelcome back, Operator: <b>{message.from_user.first_name}</b> 👑\n\n<code>🚨 SECURE COLD STATUS ACTIVE. ENGAGE VERIFICATION SCAN.</code>", 
+        parse_mode=ParseMode.HTML,
         reply_markup=kb.as_markup()
     )
 
@@ -100,7 +100,7 @@ async def auth_check(callback: types.CallbackQuery):
             await bot.send_photo(
                 chat_id=uid, photo=BANNER_URL, 
                 caption=f"<b>🛸 APX PRIME QUANTUM OS</b>\n\nOperator Node: <b>{callback.from_user.first_name}</b>\n\n<code>⚠️ LOCK STATUS: ACCESS SECURITY KEY REMOVED OR NOT ALLOCATED.</code>", 
-                reply_markup=kb.as_markup()
+                parse_mode=ParseMode.HTML, reply_markup=kb.as_markup()
             )
         else:
             await callback.answer("❌ CRITICAL TASK FAULT: Channel authorization bridge missing!", show_alert=True)
@@ -114,25 +114,25 @@ async def get_key(callback: types.CallbackQuery):
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, temp_key) VALUES (?, ?, 0, ?)", (callback.from_user.id, "NONE", key))
     conn.commit(); conn.close()
-    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY DEPLOYED:</b>\n\n<code>{key}</code>\n\nExecute payload verification:\n<code>/verify {key}</code>")
+    await callback.message.answer(f"📦 <b>CIPHERED PRIVILEGE PAIR KEY DEPLOYED:</b>\n\n<code>{key}</code>\n\nExecute payload verification:\n<code>/verify {key}</code>", parse_mode=ParseMode.HTML)
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     try: key = message.text.split(maxsplit=1)[1].strip()
-    except: return await message.answer("❌ Use layout format: <code>/verify YOUR_KEY</code>")
+    except: return await message.answer("❌ Use layout format: <code>/verify YOUR_KEY</code>", parse_mode=ParseMode.HTML)
 
     conn = sqlite3.connect('apx_stable_v190.db')
     row = conn.execute("SELECT temp_key FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
     conn.close()
 
-    if not row or row[0] != key: return await message.answer("❌ <b>SECURITY MATRIX RUNTIME REJECTION: INVALID COLD KEY</b>")
+    if not row or row[0] != key: return await message.answer("❌ <b>SECURITY MATRIX RUNTIME REJECTION: INVALID COLD KEY</b>", parse_mode=ParseMode.HTML)
 
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
 
-    await message.answer(f"🧬 <b>7-DAYS PREMIUM PRIVILEGES SYNCED TO NODE CURRENT PROFILE!</b>\nExpiration validation stamp: <code>{exp}</code>")
+    await message.answer(f"🧬 <b>7-DAYS PREMIUM PRIVILEGES SYNCED TO NODE CURRENT PROFILE!</b>\nExpiration validation stamp: <code>{exp}</code>", parse_mode=ParseMode.HTML)
     await show_mode_selection_msg(message.from_user.id)
 
 # ====================== WORKFLOWS ======================
@@ -143,7 +143,7 @@ async def show_mode_selection_msg(uid: int):
         types.InlineKeyboardButton(text="🌐 MULTI SPECTRUM FREQUENCY ARRAY", callback_data="m:multi")
     )
     b_msg = await get_broadcast_context()
-    await bot.send_message(uid, f"{b_msg}\n\n<b>┌────────────────────────┐</b>\n   ⚙️ <b>CHOOSE OPERATIONAL MODULE:</b>\n<b>└────────────────────────┘</b>", reply_markup=kb.as_markup())
+    await bot.send_message(uid, f"{b_msg}\n\n<b>┌────────────────────────┐</b>\n   ⚙️ <b>CHOOSE OPERATIONAL MODULE:</b>\n<b>└────────────────────────┘</b>", parse_mode=ParseMode.HTML, reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
@@ -162,7 +162,7 @@ async def send_pair_selection(uid: int):
     builder.adjust(2)
     if sel: builder.row(types.InlineKeyboardButton(text="🔥 INITIALIZE MATRIX COMPLIANCE", callback_data="select_strategy"))
     builder.row(types.InlineKeyboardButton(text="⬅️ FLUSH PROFILE TO MODE SELECTION", callback_data="back_to_mode"))
-    await bot.send_message(uid, "⚔️ <b>CORE OPERATIONAL ASSET GRID INTERFACE</b>\nSelect target network instruments to capture (Max 3):", reply_markup=builder.as_markup())
+    await bot.send_message(uid, "⚔️ <b>CORE OPERATIONAL ASSET GRID INTERFACE</b>\nSelect target network instruments to capture (Max 3):", parse_mode=ParseMode.HTML, reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_pair(callback: types.CallbackQuery):
@@ -187,7 +187,7 @@ async def select_strategy(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for key, name in STRATEGIES.items():
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
-    await callback.message.edit_text("🧬 <b>SELECT STRATEGY QUANTUM FILTER LOGIC:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_text("🧬 <b>SELECT STRATEGY QUANTUM FILTER LOGIC:</b>", parse_mode=ParseMode.HTML, reply_markup=kb.as_markup())
 
 # ====================== TIME BOUNDARY INTERFACES ======================
 @dp.callback_query(F.data.startswith("strat:"))
@@ -197,50 +197,51 @@ async def set_strategy(callback: types.CallbackQuery):
     user_ctx[uid]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
     user_ctx[uid]["step"] = "quotex_days"
     await callback.message.delete()
-    await bot.send_message(uid, "💎 <b>QUOTEX FUTURE SIGNALS LIST ENGINE</b>\n\nInput number of days for future signals sequence:\n(e.g., Send <code>30</code> for 30 days upcoming signals matrix pack)")
+    await bot.send_message(uid, "💎 <b>QUOTEX FUTURE SIGNALS LIST ENGINE</b>\n\nInput number of days for future signals sequence:\n(e.g., Send <code>30</code> for 30 days upcoming signals matrix pack)", parse_mode=ParseMode.HTML)
 
-@dp.message(lambda message: user_ctx.get(message.from_user.id, {}).get("step") == "quotex_days" and message.text.isdigit())
+@dp.message(lambda message: user_ctx.get(message.from_user.id, {}).get("step") == "quotex_days")
 async def handle_quotex_days(message: types.Message):
     uid = message.from_user.id
-    user_ctx[uid]["quotex_days"] = message.text
+    if not message.text.isdigit():
+        return await message.answer("❌ Numerical error. Input digits only (e.g., <code>30</code>)", parse_mode=ParseMode.HTML)
+    user_ctx[uid]["quotex_days"] = message.text.strip()
     user_ctx[uid]["step"] = "start_t"
-    await message.answer("🕒 <b>TIME EXTRACTION ENGINE ACTIVE</b>\n\nSend desired <b>START TIME</b> (Format 24H -> e.g., <code>16:00</code>):")
+    await message.answer("🕒 <b>TIME EXTRACTION ENGINE ACTIVE</b>\n\nSend desired <b>START TIME</b> (Format 24H -> e.g., <code>16:00</code>):", parse_mode=ParseMode.HTML)
 
 @dp.message(lambda message: user_ctx.get(message.from_user.id, {}).get("step") == "start_t")
 async def handle_start_time(message: types.Message):
     uid = message.from_user.id
     text_clean = message.text.strip()
     if not re.match(r'^([01]\d|2[0-3]):([0-5]\d)$', text_clean):
-        return await message.answer("❌ Format Error. Re-enter format directly as (HH:MM) -> e.g., <code>20:00</code>")
+        return await message.answer("❌ Format Error. Re-enter format directly as (HH:MM) -> e.g., <code>20:00</code>", parse_mode="HTML")
     user_ctx[uid]["start_t"] = text_clean
     user_ctx[uid]["step"] = "end_t"
-    await message.answer("🕒 <b>TIME EXTRACTION ENGINE ACTIVE</b>\n\nSend desired <b>END TIME</b> (Format 24H -> e.g., <code>18:00</code>):")
+    await message.answer("🕒 <b>TIME EXTRACTION ENGINE ACTIVE</b>\n\nSend desired <b>END TIME</b> (Format 24H -> e.g., <code>18:00</code>):", parse_mode=ParseMode.HTML)
 
 @dp.message(lambda message: user_ctx.get(message.from_user.id, {}).get("step") == "end_t")
 async def handle_end_time(message: types.Message):
     uid = message.from_user.id
     text_clean = message.text.strip()
     if not re.match(r'^([01]\d|2[0-3]):([0-5]\d)$', text_clean):
-        return await message.answer("❌ Format Error. Re-enter format directly as (HH:MM) -> e.g., <code>22:00</code>")
+        return await message.answer("❌ Format Error. Re-enter format directly as (HH:MM) -> e.g., <code>22:00</code>", parse_mode="HTML")
     user_ctx[uid]["end_t"] = text_clean
     user_ctx[uid]["step"] = "processing"
     await execute_live_signals(message)
 
-# ====================== EXCLUSIVE PARSING CORE ENGINE ======================
+# ====================== PARSING ENGINE ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
-    if not data or not data.get("pairs"): return await bot.send_message(uid, "⚠️ Session context mapping corrupted. Execute /start.")
+    if not data or not data.get("pairs"): return await bot.send_message(uid, "⚠️ Session context mapping corrupted. Execute /start.", parse_mode=ParseMode.HTML)
 
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        # Fancy Colorful Rainbow Matrix Loader Screen
-        load = await bot.send_message(uid, "🛸 <code>⚡ [ CONNECTING STABLE ACCESS NODE HOOKS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴⚫⚫⚫⚫⚫⚫⚫⚫] 20% PROCESS BLOCK</code>")
+        load = await bot.send_message(uid, "🛸 <code>⚡ [ CONNECTING STABLE ACCESS NODE HOOKS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴⚫⚫⚫⚫⚫⚫⚫⚫] 20% PROCESS BLOCK</code>", parse_mode=ParseMode.HTML)
         await asyncio.sleep(0.4)
-        await load.edit_text("🛸 <code>⚡ [ INGESTING STREAM METADATA ENGINE PACKETS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴🧡🧡💛💛⚫⚫⚫⚫] 60% HIGH RECON LINK</code>")
+        await load.edit_text("🛸 <code>⚡ [ INGESTING STREAM METADATA ENGINE PACKETS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴🧡🧡💛💛⚫⚫⚫⚫] 60% HIGH RECON LINK</code>", parse_mode=ParseMode.HTML)
         await asyncio.sleep(0.4)
-        await load.edit_text("🛸 <code>⚡ [ COMPILING DIRECT PARSED HOOK ARRAYS PERFECTLY ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴🧡🧡💛💛💚💚🟦🟣] 100% SECURE TUNNEL LOADED</code>")
+        await load.edit_text("🛸 <code>⚡ [ COMPILING DIRECT PARSED HOOK ARRAYS PERFECTLY ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴🧡🧡💛💛💚💚🟦🟣] 100% SECURE TUNNEL LOADED</code>", parse_mode="HTML")
         await asyncio.sleep(0.2)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
@@ -277,7 +278,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                                     try:
                                         sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
                                         
-                                        # Overnight time frame boundary calculation check
+                                        # Strict Overnight Time Frame Filter Logic Fix
                                         is_inside = False
                                         if start_time <= end_time:
                                             is_inside = start_time <= sig_time <= end_time
@@ -292,7 +293,6 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         signals.sort(key=lambda x: x[0])
 
         body = ""
-        # Absolute Monospace Straight Padding Format to prevent any arrow drops
         for _, pair, direction, t in signals[:45]:
             arrow = "↑" if direction in ["CALL", "BUY"] else "↓"
             body += f"⧉ {pair+'-OTC':<12} → {t} ⇨ {direction:<4} {arrow}\n"
@@ -311,7 +311,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         types.InlineKeyboardButton(text="🔄 RE-MAP FREQUENCY ASSETS", callback_data="change_pair_back"),
         types.InlineKeyboardButton(text="❌ SHUTDOWN TERMINAL", callback_data="exit_sys")
     )
-    await bot.send_message(uid, f"📡 <b>DATA PROCESSING CORE DISCHARGE</b>\n\n<code>{report_content}</code>", reply_markup=kb.as_markup())
+    await bot.send_message(uid, f"📡 <b>DATA PROCESSING CORE DISCHARGE</b>\n\n<code>{report_content}</code>", parse_mode=ParseMode.HTML, reply_markup=kb.as_markup())
 
 # ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "regen_sig")
@@ -331,7 +331,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "exit_sys")
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer(); await callback.message.delete()
-    await bot.send_message(callback.from_user.id, "<code>APX SYSTEM SAFELY SHUT DOWN. MEMORY POOLS FLUSHED.\nGoodbye! 👋</code>")
+    await bot.send_message(callback.from_user.id, "<code>APX SYSTEM SAFELY SHUT DOWN. MEMORY POOLS FLUSHED.\nGoodbye! 👋</code>", parse_mode=ParseMode.HTML)
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
