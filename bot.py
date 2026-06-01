@@ -206,12 +206,7 @@ async def select_strategy(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for key, name in STRATEGIES.items():
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
-    
-    # 🔥 CRITICAL EXCEPTION FIX: Use edit_text instead of edit_caption since there's no photo attached to this specific interface element
-    try:
-        await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
-    except:
-        await callback.message.answer("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
 
 # ====================== STRATEGY + TIME + SIGNALS ======================
 @dp.callback_query(F.data.startswith("strat:"))
@@ -238,7 +233,7 @@ async def handle_times(message: types.Message):
         data["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== COLORFUL LOADING + CLEAN SIGNALS ======================
+# ====================== ENGINE MAP FIXED FOR LIVE API ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -254,14 +249,25 @@ async def execute_live_signals(message: types.Message, is_regen=False):
             await asyncio.sleep(0.45)
             await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>{bar} {p}</code> ⚡")
 
+        start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
+        end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
+
+        header = "🎴 <b>APX PRIME LIVE SIGNALS</b>\n"
+        header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
+        header += f"📊 Strategy: <b>{data.get('strategy', 'Default')}</b>\n"
+        header += "━━━━━━━━━━━━━━━━━━━━━━\n"
+
         signals = []
         async with aiohttp.ClientSession() as session:
             for pair in data["pairs"]:
+                # 🔥 FIXED PARAMETER FORMAT: Appended '-OTC' directly to match your backend site database exactly
+                api_url = f"https://milongazi197.serv00.net/f/api.php?pair={pair}-OTC&count=100"
                 try:
-                    async with session.get(f"https://milongazi197.serv00.net/f/api.php?pair={pair}-OTC&count=100", timeout=15) as resp:
+                    async with session.get(api_url, timeout=15) as resp:
                         if resp.status == 200:
                             text = await resp.text()
                             for line in text.splitlines():
+                                if not line.strip(): continue
                                 if "=>" in line:
                                     parts = [p.strip() for p in line.split("=>")]
                                     if len(parts) >= 3:
@@ -269,9 +275,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                                         direction = parts[2].strip().upper()
                                         try:
                                             sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
-                                            start_t = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
-                                            end_t = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
-                                            if start_t <= sig_time <= end_t:
+                                            if start_time <= sig_time <= end_time:
                                                 signals.append((sig_time, pair, direction, t_str))
                                         except: pass
                 except: pass
@@ -281,21 +285,12 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         body = ""
         for _, pair, direction, t in signals:
             arrow = "↑" if direction == "CALL" else "↓"
-            body += f"⧉ <b>{t}</b> • {pair} {arrow} <b>{direction}</b>\n"
+            body += f"🔹 <b>{pair}-OTC</b> → {t} ⇨ <b>{direction} {arrow}</b>\n"
 
         if not body:
-            body = "⚠️ No signals found in selected time range.\n"
+            body = "⚠️ No signals found in selected time range inside your site.\n"
 
-        report_content = (
-            f"🌍 <b>APX PRIME OS v190.0</b>\n"
-            f"⏰ <b>{data['start_t']} - {data['end_t']}</b> (UTC+6)\n"
-            f"📊 Strategy: <b>{data['strategy']}</b>\n"
-            f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
-            f"{body}\n"
-            f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-            f"❗ <i>High Accuracy • 1% Risk Only</i>"
-        )
-        
+        report_content = header + body + "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot</i>"
         data["last_report"] = report_content
         await load.delete()
 
