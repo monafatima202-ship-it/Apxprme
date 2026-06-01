@@ -20,14 +20,14 @@ PAIRS_DATA = {
     "BTCUSD": "₿🌐 BTCUSD-OTC", "USDTRY": "🇺🇸🇹🇷 USDTRY-OTC", "USDBRL": "🇺🇸🇧🇷 USDBRL-OTC",
     "NZDUSD": "🇳🇿🇺🇸 NZDUSD-OTC", "AUDUSD": "🇦🇺🇺🇸 AUDUSD-OTC", "USDCHF": "🇺🇸🇨🇭 USDCHF-OTC",
     "USDCOP": "🇺🇸🇨🇴 USDCOP-OTC", "USDBDT": "🇺🇸🇧🇩 USDBDT-OTC", "USDARS": "🇺🇸🇦🇷 USDARS-OTC",
-    "USDNGN": "🇺🇸🇳🇬 USDNGN-OTC", # New Pair Added Successfully
+    "USDNGN": "🇺🇸🇳🇬 USDNGN-OTC", # Registered Node Asset Complete
     "AAPL": "🇺🇸🍎 AAPL-OTC", "MSFT": "🇺🇸💻 MSFT-OTC", "PFE": "🇺🇸💊 PFE-OTC",
     "JNJ": "🇺🇸🏥 JNJ-OTC", "MCD": "🇺🇸🍔 MCD-OTC", "INTL": "🇺🇸🔬 INTL-OTC"
 }
 
 STRATEGIES = {
     "1": "🛸 MATRIX NEURAL ENGINE (RSI+MA)",
-    "2": "🛸 MACD COGNITIVE crossover",
+    "2": "🛸 MACD COGNITIVE CROSSOVER",
     "3": "🛸 BOLLINGER QUANTUM EXTENSION",
     "4": "🛸 STOCHASTIC HIGH ACCURACY SHIELD",
     "5": "🛸 ENSEMBLE SYNAPSE MATRIX (ALL)"
@@ -187,7 +187,7 @@ async def select_strategy(callback: types.CallbackQuery):
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
     await callback.message.edit_text("🧬 <b>SELECT STRATEGY QUANTUM FILTER LOGIC:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== FIXED ASYNC FLOW ENGINE ======================
+# ====================== TIME BOUNDARY INTERFACES ======================
 @dp.callback_query(F.data.startswith("strat:"))
 async def set_strategy(callback: types.CallbackQuery):
     await callback.answer()
@@ -222,7 +222,7 @@ async def handle_end_time(message: types.Message):
     user_ctx[uid]["step"] = "processing"
     await execute_live_signals(message)
 
-# ====================== EXCLUSIVE PARSING CORE ENGINE ======================
+# ====================== QUANTUM EXTRACTION LOGIC ENGINE ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -231,6 +231,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
+        # Fancy Rainbow Loader Screen
         load = await bot.send_message(uid, "🛸 <code>⚡ [ CONNECTING STABLE ACCESS NODE HOOKS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴⚫⚫⚫⚫⚫⚫⚫⚫] 20% PROCESS BLOCK</code>", parse_mode="HTML")
         await asyncio.sleep(0.4)
         await load.edit_text("🛸 <code>⚡ [ INGESTING STREAM METADATA ENGINE PACKETS ]</code>\n\n⚡ <b>DECRYPTING ARRAY:</b>\n<code>[🔴🔴🧡🧡💛💛⚫⚫⚫⚫] 60% HIGH RECON LINK</code>", parse_mode="HTML")
@@ -258,6 +259,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                             for line in raw_text.splitlines():
                                 if not line.strip(): continue
                                 
+                                # Flexible Data Stream Evaluator (Supports =>, |, -)
                                 line_clean = line.replace('⧉', '').replace('⚡', '').replace('⇨', '').strip()
                                 parts = []
                                 if "=>" in line: parts = [p.strip() for p in line.split("=>")]
@@ -272,7 +274,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                                     try:
                                         sig_time = datetime.datetime.strptime(t_str, "%H:%M").time()
                                         
-                                        # Strict Overnight Time Frame Filter Logic Fix
+                                        # Midnight boundary mapping fix
                                         is_inside = False
                                         if start_time <= end_time:
                                             is_inside = start_time <= sig_time <= end_time
@@ -287,6 +289,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         signals.sort(key=lambda x: x[0])
 
         body = ""
+        # Strict Monospace formatting logic to keep arrows securely positioned 
         for _, pair, direction, t in signals[:45]:
             arrow = "↑" if direction in ["CALL", "BUY"] else "↓"
             body += f"⧉ {pair+'-OTC':<12} → {t} ⇨ {direction:<4} {arrow}\n"
@@ -307,7 +310,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     )
     await bot.send_message(uid, f"📡 <b>DATA PROCESSING CORE DISCHARGE</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== CALLBACKS ======================
+# ====================== DISPATCH CORE MAPS ======================
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
     await callback.answer("Recalibrating high frequency tracking array...")
