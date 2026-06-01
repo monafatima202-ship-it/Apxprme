@@ -43,6 +43,13 @@ STRATEGIES = {
     "5": "🌟 All Strategies Combined"
 }
 
+QUOTES = {
+    "morning": "🌅 \"The goal of a successful trader is to make the best trades. Money is secondary.\"",
+    "cooldown": "❄️ \"In trading, the best action is sometimes inaction. Guard your capital closely.\"",
+    "maintenance": "🛠️ \"System optimization ensures flawless accuracy. Trust the parameters.\"",
+    "sleep": "🌙 \"Market analysis is done. Unplug, rest, and prepare for tomorrow's market supremacy.\""
+}
+
 # ====================== DATABASE ======================
 def init_db():
     conn = sqlite3.connect('apx_stable_v190.db')
@@ -50,6 +57,21 @@ def init_db():
                  (uid INTEGER PRIMARY KEY, expiry TEXT, is_vip INTEGER DEFAULT 0, temp_key TEXT)''')
     conn.commit()
     conn.close()
+
+# ====================== SYSTEM TIME STATE INTERFACE ======================
+async def get_broadcast_context():
+    # Strict PKT calculation (UTC+5)
+    now_pkt = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5)
+    h = now_pkt.hour
+    
+    if 7 <= h < 12:
+        return f"💡 <b>SYS BROADCAST:</b>\n<code>{QUOTES['morning']}</code>\n🟢 <b>TRADING PLATFORM: OPERATIONAL</b>"
+    elif 12 <= h < 17:
+        return f"💡 <b>SYS BROADCAST:</b>\n<code>{QUOTES['cooldown']}</code>\n❄️ <b>SYSTEM STATE: COOL DOWN IN EFFECT</b>"
+    elif 17 <= h < 23:
+        return f"💡 <b>SYS BROADCAST:</b>\n<code>{QUOTES['maintenance']}</code>\n⚠️ <b>SYSTEM STATE: MAINTENANCE CHECKPOINTS ACTIVE</b>"
+    else:
+        return f"💡 <b>SYS BROADCAST:</b>\n<code>{QUOTES['sleep']}</code>\n🌙 <b>SYSTEM STATE: SLEEP MODE ACTIVE</b>"
 
 # ====================== START ======================
 @dp.message(Command("start"))
@@ -89,14 +111,14 @@ async def auth_check(callback: types.CallbackQuery):
                 except: pass
 
             kb = InlineKeyboardBuilder()
-            kb.row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
+            kb.row(types.InlineKeyboardButton(text="🔑 GET ACCESS TERMINAL", callback_data="get_key"))
             await bot.send_photo(uid, BANNER_URL, 
-                caption=f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>! 👋",
+                caption=f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>! 👋\nInitialization step required.",
                 reply_markup=kb.as_markup())
         else:
             await callback.answer("❌ Join channel first!", show_alert=True)
     except:
-        await callback.answer("⚠️ Error", show_alert=True)
+        await callback.answer("⚠️ Authentication Error", show_alert=True)
 
 @dp.callback_query(F.data == "get_key")
 async def get_key(callback: types.CallbackQuery):
@@ -115,29 +137,30 @@ async def get_key(callback: types.CallbackQuery):
         conn.commit()
     conn.close()
     
-    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>")
+    await callback.message.answer(f"🔑 <b>7-DAY SECURITY VIP ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend payload activation: <code>/verify {key}</code>")
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     try:
         key = message.text.split(maxsplit=1)[1].strip()
     except:
-        return await message.answer("❌ Use: <code>/verify YOUR_KEY</code>")
+        return await message.answer("❌ Use syntax: <code>/verify YOUR_KEY</code>")
 
     conn = sqlite3.connect('apx_stable_v190.db')
-    row = conn.execute("SELECT temp_key FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
+    row = conn.execute("SELECT temp_key, expiry, is_vip FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
     conn.close()
 
     if not row or row[0] != key:
-        return await message.answer("❌ <b>Invalid Key!</b>")
+        return await message.answer("❌ <b>Invalid Terminal Security Key!</b>")
 
+    # Asking and displaying remaining duration validation precisely 
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit()
     conn.close()
 
-    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: <code>{exp[:10]}</code>")
+    await message.answer(f"✅ <b>7 DAYS ACCESS ALLOCATED TO DEVICE PROPERLY!</b>\nValid until expiration check: <code>{exp}</code>")
     await show_mode_selection(message)
 
 # ====================== MODE & PAIR SELECTION ======================
@@ -146,14 +169,16 @@ async def show_mode_selection_msg(uid: int):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
     kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
-    await bot.send_message(uid, "⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
+    
+    broadcast_msg = await get_broadcast_context()
+    await bot.send_message(uid, f"{broadcast_msg}\n\n━━━━━━━━━━━━━━━\n⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
 
 async def show_mode_selection(message: types.Message):
     await show_mode_selection_msg(message.from_user.id)
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
-    await callback.answer("✅ Mode Selected!")
+    await callback.answer("✅ Mode Configured.")
     uid = callback.from_user.id
     user_ctx.setdefault(uid, {"pairs": [], "last_report": None, "strategy": None})
     user_ctx[uid]["mode"] = callback.data.split(":")[1]
@@ -174,7 +199,7 @@ async def send_pair_selection(uid: int):
 
     await bot.send_message(
         uid,
-        "🧪 <b>SELECT ASSETS (MAX 3):</b>\n<i>Tap to select / deselect</i>",
+        "🧪 <b>SELECT ASSETS (MAX 3):</b>\n<i>Tap network buttons to map terminal parameters</i>",
         reply_markup=builder.as_markup()
     )
 
@@ -206,7 +231,7 @@ async def select_strategy(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for key, name in STRATEGIES.items():
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
-    await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_text("📈 <b>SELECT ACTIVE ALGORITHM STRATEGY:</b>", reply_markup=kb.as_markup())
 
 # ====================== STRATEGY + TIME + SIGNALS ======================
 @dp.callback_query(F.data.startswith("strat:"))
@@ -217,7 +242,7 @@ async def set_strategy(callback: types.CallbackQuery):
     user_ctx[uid]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
     user_ctx[uid]["step"] = "start_t"
     await callback.message.delete()
-    await bot.send_message(uid, "🕒 <b>Enter Start Time</b> (e.g. <code>16:00</code>)")
+    await bot.send_message(uid, "🕒 <b>Enter Start Time Parameter</b> (e.g. <code>16:00</code>)")
 
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
@@ -228,39 +253,41 @@ async def handle_times(message: types.Message):
     if data["step"] == "start_t":
         data["start_t"] = message.text
         data["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>18:00</code>)")
+        await message.answer("🕒 <b>Enter End Time Parameter</b> (e.g. <code>18:00</code>)")
     elif data["step"] == "end_t":
         data["end_t"] = message.text
+        data["step"] = "processing"
         await execute_live_signals(message)
 
-# ====================== ENGINE MAP FIXED FOR LIVE API ======================
+# ====================== RAINBOW MATRIX LOAD + REAL LINEAR DATA SYSTEM ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
     if not data or not data.get("pairs"):
-        return await bot.send_message(uid, "⚠️ Please select assets first.")
+        return await bot.send_message(uid, "⚠️ Operational assets configuration context missing.")
 
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        load = await bot.send_message(uid, "🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>░░░░░░░░░░ 0%</code> ✨")
-        stages = [("40%", "▓▓▓░░░░░░"), ("75%", "▓▓▓▓▓▓░░░░"), ("98%", "▓▓▓▓▓▓▓▓▓░")]
-        for p, bar in stages:
-            await asyncio.sleep(0.45)
-            await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>{bar} {p}</code> ⚡")
+        # Premium Fancy Custom Rainbow Gradient Optimization Matrix Bars
+        load = await bot.send_message(uid, "🌌 <b>INITIALIZING APX QUANTUM INTERFACE</b>\n<code>🔴🧡💛 25% CORE SYNC</code> ✨")
+        await asyncio.sleep(0.4)
+        await load.edit_text("🌌 <b>SYNCHRONIZING SECURE NETWORK HOOKS</b>\n<code>🔴🧡💛💚🟦 65% SECURE</code> ⚡")
+        await asyncio.sleep(0.4)
+        await load.edit_text("🌌 <b>PARSING MILONGAZI LIVE OTC PACKETS</b>\n<code>🔴🧡💛💚🟦🟣 100% SUCCESS</code> 💎")
+        await asyncio.sleep(0.3)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
         end_time = datetime.datetime.strptime(data['end_t'], "%H:%M").time()
 
         header = "🎴 <b>APX PRIME LIVE SIGNALS</b>\n"
-        header += f"🕒 {data['start_t']} - {data['end_t']} PKT\n"
+        header += f"🕒 {data['start_t']} - {data['end_t']} PKT (UTC+6)\n"
         header += f"📊 Strategy: <b>{data.get('strategy', 'Default')}</b>\n"
-        header += "━━━━━━━━━━━━━━━━━━━━━━\n"
+        header += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
         signals = []
         async with aiohttp.ClientSession() as session:
             for pair in data["pairs"]:
-                # 🔥 FIXED PARAMETER FORMAT: Appended '-OTC' directly to match your backend site database exactly
                 api_url = f"https://milongazi197.serv00.net/f/api.php?pair={pair}-OTC&count=100"
                 try:
                     async with session.get(api_url, timeout=15) as resp:
@@ -283,34 +310,37 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         signals.sort(key=lambda x: x[0])
 
         body = ""
-        for _, pair, direction, t in signals:
+        # Strict Monospace Row Matrix Padding layout logic so arrows never drop down or break the sequence line layout
+        for _, pair, direction, t in signals[:40]:
             arrow = "↑" if direction == "CALL" else "↓"
-            body += f"🔹 <b>{pair}-OTC</b> → {t} ⇨ <b>{direction} {arrow}</b>\n"
+            body += f"⧉ {pair:11} → {t} ⇨ {direction:4} {arrow}\n"
 
-        if not body:
-            body = "⚠️ No signals found in selected time range inside your site.\n"
+        # ABSOLUTE STRICT GUARANTEE: If API gives no match, notify strictly without random fallbacks
+        if not body.strip():
+            body = "⚠️ STRICT PROTOCOL NOTICE:\nNo structural data packets matched target time frame criteria inside server data.\n"
 
-        report_content = header + body + "\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Powered by 🌐 APX Premium Bot</i>"
+        footer = "\n━━━━━━━━━━━━━━━━━━━━━━━━\nRULES ‼️\n- DO NOT TRADE IN ASSIGNED MARKET VALUE < 80%\n- EMPLOY PREMIUM SAFETY MARGIN PROTECTION"
+        report_content = header + body + footer
         data["last_report"] = report_content
         await load.delete()
 
     kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE", callback_data="regen_sig"))
-    kb.row(types.InlineKeyboardButton(text="📋 COPY SIGNALS", callback_data="copy_signals"))
-    kb.row(types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"))
-    kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
+    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE DATA", callback_data="regen_sig"))
+    kb.row(types.InlineKeyboardButton(text="📋 COPY REQUISITE PAYLOAD", callback_data="copy_signals"))
+    kb.row(types.InlineKeyboardButton(text="🔄 ALTER TARGET ASSETS", callback_data="change_pair_back"))
+    kb.row(types.InlineKeyboardButton(text="❌ SHUTDOWN TERMINAL", callback_data="exit_sys"))
 
-    await bot.send_message(uid, f"<b>📡 LIVE SIGNALS GENERATED</b>\n\n<code>{report_content}</code>", reply_markup=kb.as_markup())
+    await bot.send_message(uid, f"<b>📡 LIVE DEVIATION SIGNALS INGESTED</b>\n\n<code>{report_content}</code>", reply_markup=kb.as_markup())
 
-# ====================== OTHER CALLBACKS ======================
+# ====================== CALLBACK PLATFORM MAPS ======================
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("🔄 Refreshing...")
+    await callback.answer("🔄 Resynching server array pipeline data maps...")
     await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "copy_signals")
 async def copy_signals(callback: types.CallbackQuery):
-    await callback.answer("✅ Copied to clipboard!", show_alert=True)
+    await callback.answer("✅ Target payload saved to structural device clipboard!", show_alert=True)
 
 @dp.callback_query(F.data == "change_pair_back")
 async def change_pair_back(callback: types.CallbackQuery):
@@ -322,7 +352,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.delete()
-    await bot.send_message(callback.from_user.id, f"<code>APX PRIME TERMINAL CLOSED\nGoodbye {callback.from_user.first_name} 👋</code>")
+    await bot.send_message(callback.from_user.id, f"<code>APX PRIME SECURE LOGOUT COMPLETELY EXECUTED\nSession state killed safely. Goodbye {callback.from_user.first_name} 👋</code>")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
