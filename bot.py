@@ -140,7 +140,7 @@ async def verify_cmd(message: types.Message):
     await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: <code>{exp[:10]}</code>")
     await show_mode_selection(message)
 
-# ====================== MODE & PAIR SELECTION (FREEZE FIXED) ======================
+# ====================== MODE & PAIR SELECTION ======================
 async def show_mode_selection_msg(uid: int):
     user_ctx[uid] = {"pairs": [], "last_report": None, "strategy": None, "mode": None}
     kb = InlineKeyboardBuilder()
@@ -157,10 +157,9 @@ async def mode_set(callback: types.CallbackQuery):
     uid = callback.from_user.id
     user_ctx.setdefault(uid, {"pairs": [], "last_report": None, "strategy": None})
     user_ctx[uid]["mode"] = callback.data.split(":")[1]
-    await send_pair_selection(uid)   # New function to avoid edit issues
+    await send_pair_selection(uid)
 
 async def send_pair_selection(uid: int):
-    """Sends fresh message for pair selection to prevent freezing"""
     sel = user_ctx[uid]["pairs"]
     builder = InlineKeyboardBuilder()
     
@@ -192,8 +191,8 @@ async def toggle_pair(callback: types.CallbackQuery):
         user_ctx[uid]["pairs"].append(code)
     
     await callback.answer()
-    await callback.message.delete()   # Delete old grid
-    await send_pair_selection(uid)    # Send fresh updated grid
+    await callback.message.delete()
+    await send_pair_selection(uid)
 
 @dp.callback_query(F.data == "back_to_mode")
 async def back_to_mode(callback: types.CallbackQuery):
@@ -207,12 +206,19 @@ async def select_strategy(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for key, name in STRATEGIES.items():
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
-    await callback.message.edit_caption("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
+    
+    # 🔥 CRITICAL EXCEPTION FIX: Use edit_text instead of edit_caption since there's no photo attached to this specific interface element
+    try:
+        await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
+    except:
+        await callback.message.answer("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
 
 # ====================== STRATEGY + TIME + SIGNALS ======================
 @dp.callback_query(F.data.startswith("strat:"))
 async def set_strategy(callback: types.CallbackQuery):
+    await callback.answer()
     uid = callback.from_user.id
+    if uid not in user_ctx: return
     user_ctx[uid]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
     user_ctx[uid]["step"] = "start_t"
     await callback.message.delete()
@@ -281,7 +287,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
             body = "⚠️ No signals found in selected time range.\n"
 
         report_content = (
-            f"<b>🌍 APX PRIME OS v190.0</b>\n"
+            f"🌍 <b>APX PRIME OS v190.0</b>\n"
             f"⏰ <b>{data['start_t']} - {data['end_t']}</b> (UTC+6)\n"
             f"📊 Strategy: <b>{data['strategy']}</b>\n"
             f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
