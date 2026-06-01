@@ -23,7 +23,7 @@ bot = Bot(
 dp = Dispatcher()
 user_ctx = {}
 
-# ====================== PAIRS WITH DUAL FLAGS ======================
+# ====================== FULL PAIRS WITH DUAL FLAGS ======================
 PAIRS_DATA = {
     "USDINR": "🇺🇸🇮🇳 USDINR-OTC", "USDPKR": "🇺🇸🇵🇰 USDPKR-OTC", "USDJPY": "🇺🇸🇯🇵 USDJPY-OTC",
     "USDPHP": "🇺🇸🇵🇭 USDPHP-OTC", "USDMXN": "🇺🇸🇲🇽 USDMXN-OTC", "EURUSD": "🇪🇺🇺🇸 EURUSD-OTC",
@@ -67,18 +67,18 @@ async def start_handler(message: types.Message):
         reply_markup=kb.as_markup()
     )
 
-# ====================== AUTH ======================
+# ====================== AUTH & KEY SECURITY ======================
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
     uid = callback.from_user.id
     try:
         chat = await bot.get_chat_member(CHANNEL_USERNAME, uid)
         if chat.status not in ["left", "kicked"]:
-            await callback.answer("✅ Verified!", show_alert=True)
+            await callback.answer("✅ Channel Verified!", show_alert=True)
             await callback.message.delete()
 
             conn = sqlite3.connect('apx_stable_v190.db')
-            u = conn.execute("SELECT expiry, is_vip FROM users WHERE uid = ?", (uid,)).fetchone()
+            u = conn.execute("SELECT expiry, is_vip, temp_key FROM users WHERE uid = ?", (uid,)).fetchone()
             conn.close()
 
             is_active = False
@@ -104,15 +104,27 @@ async def auth_check(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "get_key")
 async def get_key(callback: types.CallbackQuery):
+    uid = callback.from_user.id
     await callback.answer()
-    key = f"APX-{random.randint(1000,9999)}-{random.randint(1000,9999)}"
+    
     conn = sqlite3.connect('apx_stable_v190.db')
-    conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, temp_key) VALUES (?, ?, 0, ?)", 
-                 (callback.from_user.id, "NONE", key))
-    conn.commit()
+    u = conn.execute("SELECT temp_key, is_vip FROM users WHERE uid = ?", (uid,)).fetchone()
+    
+    # Security: One user one key - prevent multiple generations
+    if u and u[0] and u[1] == 0:
+        key = u[0]
+    else:
+        key = f"APX-{random.randint(1000,9999)}-{random.randint(1000,9999)}"
+        conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, temp_key) VALUES (?, ?, 0, ?)", 
+                     (uid, "NONE", key))
+        conn.commit()
     conn.close()
     
-    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>")
+    await callback.message.answer(
+        f"🔑 <b>7-DAY ACCESS KEY</b>\n\n"
+        f"<code>{key}</code>\n\n"
+        f"Send: <code>/verify {key}</code>"
+    )
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
@@ -126,7 +138,7 @@ async def verify_cmd(message: types.Message):
     conn.close()
 
     if not row or row[0] != key:
-        return await message.answer("❌ <b>Invalid Key!</b>")
+        return await message.answer("❌ <b>Invalid or Already Used Key!</b>")
 
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
@@ -137,7 +149,7 @@ async def verify_cmd(message: types.Message):
     await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: <code>{exp[:10]}</code>")
     await show_mode_selection(message)
 
-# ====================== MODE & PAIR SELECTION ======================
+# ====================== FANCY MODE & PAIR SELECTION ======================
 async def show_mode_selection_msg(uid: int):
     user_ctx[uid] = {"pairs": [], "last_report": None, "strategy": None}
     kb = InlineKeyboardBuilder()
@@ -153,7 +165,7 @@ async def mode_set(callback: types.CallbackQuery):
     uid = callback.from_user.id
     user_ctx.setdefault(uid, {"pairs": [], "last_report": None, "strategy": None})
     user_ctx[uid]["mode"] = callback.data.split(":")[1]
-    await render_grid(callback)
+    await render_grid(callback)  # Fixed freezing point
 
 async def render_grid(callback: types.CallbackQuery):
     uid = callback.from_user.id
@@ -169,10 +181,40 @@ async def render_grid(callback: types.CallbackQuery):
         builder.row(types.InlineKeyboardButton(text="🚀 NEXT → STRATEGY", callback_data="select_strategy"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK TO MODE", callback_data="back_to_mode"))
 
-    await callback.message.edit_caption(
-        caption="🧪 <b>SELECT ASSETS (MAX 3):</b>",
-        reply_markup=builder.as_markup()
-    )
+    try:
+        await callback.message.edit_caption(
+            caption="🧪 <b>SELECT ASSETS (MAX 3):</b>\n<i>Tap to toggle selection</i>",
+            reply_markup=builder.as_markup()
+        )
+    except:
+        try:
+            await callback.message.edit_text(
+                text="🧪 <b>SELECT ASSETS (MAX 3):</b>",
+                reply_markup=builder.as_markup()
+            )
+        except:
+            await bot.send_message(uid, "🧪 <b>SELECT ASSETS (MAX 3):</b>", reply_markup=builder.as_markup())
+
+@dp.callback_query(F.data.startswith("sel:"))
+async def toggle_pair(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    if uid not in user_ctx: return
+    code = callback.data.split(":")[1]
+    limit = 3 if user_ctx[uid].get("mode") == "multi" else 1
+    if code in user_ctx[uid]["pairs"]:
+        user_ctx[uid]["pairs"].remove(code)
+    elif len(user_ctx[uid]["pairs"]) < limit:
+        user_ctx[uid]["pairs"].append(code)
+    await callback.answer()
+    await render_grid(callback)
+
+@dp.callback_query(F.data == "back_to_mode")
+async def back_to_mode(callback: types.CallbackQuery):
+    await callback.answer()
+    kb = InlineKeyboardBuilder()
+    kb.row(types.InlineKeyboardButton(text="🎯 SINGLE ASSET", callback_data="m:single"))
+    kb.row(types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi"))
+    await callback.message.edit_caption(caption="⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "select_strategy")
 async def select_strategy(callback: types.CallbackQuery):
@@ -181,13 +223,14 @@ async def select_strategy(callback: types.CallbackQuery):
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
     await callback.message.edit_caption("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
 
+# ====================== TIME & SIGNALS ======================
 @dp.callback_query(F.data.startswith("strat:"))
 async def set_strategy(callback: types.CallbackQuery):
     uid = callback.from_user.id
     user_ctx[uid]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
     user_ctx[uid]["step"] = "start_t"
     await callback.message.delete()
-    await bot.send_message(uid, "🕒 <b>Enter Start Time</b> (e.g. <code>16:00</code>)")
+    await bot.send_message(uid, "🕒 <b>Enter Start Time</b> (Format: <code>HH:MM</code>)")
 
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
@@ -198,12 +241,12 @@ async def handle_times(message: types.Message):
     if data["step"] == "start_t":
         data["start_t"] = message.text
         data["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time</b> (e.g. <code>18:00</code>)")
+        await message.answer("🕒 <b>Enter End Time</b> (Format: <code>HH:MM</code>)")
     elif data["step"] == "end_t":
         data["end_t"] = message.text
         await execute_live_signals(message)
 
-# ====================== STYLISH SIGNAL ENGINE ======================
+# ====================== COLORFUL LOADING + ADVANCED SIGNALS ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
@@ -213,10 +256,11 @@ async def execute_live_signals(message: types.Message, is_regen=False):
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
+        # Fancy Colorful Loading
         load = await bot.send_message(uid, "🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>░░░░░░░░░░ 0%</code> ✨")
-        for p in ["40%", "75%", "98%"]:
-            await asyncio.sleep(0.4)
-            await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>▓▓▓▓▓░░░░░ {p}</code> ⚡")
+        for p, bar in [("40%", "▓▓▓░░░░░░"), ("75%", "▓▓▓▓▓▓░░░░"), ("98%", "▓▓▓▓▓▓▓▓▓░")]:
+            await asyncio.sleep(0.5)
+            await load.edit_text(f"🌌 <b>APX PRIME OS ACTIVATING</b>\n<code>{bar} {p}</code> ⚡")
 
         signals = []
         async with aiohttp.ClientSession() as session:
@@ -257,17 +301,17 @@ async def execute_live_signals(message: types.Message, is_regen=False):
             f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
             f"{body}\n"
             f"<b>━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-            f"❗ <i>1% Risk Management | 80%+ Accuracy Preferred</i>"
+            f"❗ <i>High Accuracy Signals | 1% Risk Only</i>"
         )
         
         data["last_report"] = report_content
         await load.delete()
 
     kb = InlineKeyboardBuilder()
-    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE SIGNALS", callback_data="regen_sig"))
+    kb.row(types.InlineKeyboardButton(text="🔄 REGENERATE", callback_data="regen_sig"))
     kb.row(types.InlineKeyboardButton(text="📋 COPY SIGNALS", callback_data="copy_signals"))
     kb.row(types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"))
-    kb.row(types.InlineKeyboardButton(text="❌ EXIT SYSTEM", callback_data="exit_sys"))
+    kb.row(types.InlineKeyboardButton(text="❌ EXIT", callback_data="exit_sys"))
 
     await bot.send_message(
         uid,
@@ -278,7 +322,7 @@ async def execute_live_signals(message: types.Message, is_regen=False):
 # ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("🔄 Refreshing signals...")
+    await callback.answer("🔄 Refreshing live data...")
     await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "copy_signals")
