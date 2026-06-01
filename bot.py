@@ -11,7 +11,6 @@ ADMIN_ID = 6507462873
 CHANNEL_USERNAME = "@vectabot1"
 BANNER_URL = "https://raw.githubusercontent.com/monafatima202-ship-it/apx-otc-api/main/apxprime.png"
 
-# Hardcoded Global Properties mapping to completely block HTML text leaks
 bot = Bot(token=TOKEN, default_properties=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 user_ctx = {}
@@ -69,7 +68,14 @@ async def start_handler(message: types.Message):
     kb = InlineKeyboardBuilder()
     kb.row(types.InlineKeyboardButton(text="📢 JOIN CHANNEL", url=f"https://t.me/vectabot1"))
     kb.row(types.InlineKeyboardButton(text="🛡️ VERIFY MEMBERSHIP", callback_data="auth_check"))
-    await message.answer_photo(photo=BANNER_URL, caption=f"<b>🔥 APX PRIME OS v190.0</b>\n\nWelcome <b>{message.from_user.first_name}</b> 👑\n<i>Next-Gen OTC Trading Intelligence</i>", reply_markup=kb.as_markup())
+    
+    # Explicit parse_mode attached here
+    await message.answer_photo(
+        photo=BANNER_URL, 
+        caption=f"<b>🔥 APX PRIME OS v190.0</b>\n\nWelcome <b>{message.from_user.first_name}</b> 👑\n<i>Next-Gen OTC Trading Intelligence</i>", 
+        parse_mode="HTML",
+        reply_markup=kb.as_markup()
+    )
 
 @dp.callback_query(F.data == "auth_check")
 async def auth_check(callback: types.CallbackQuery):
@@ -92,7 +98,14 @@ async def auth_check(callback: types.CallbackQuery):
                 except: pass
 
             kb = InlineKeyboardBuilder().row(types.InlineKeyboardButton(text="🔑 GET 7-DAY ACCESS", callback_data="get_key"))
-            await bot.send_photo(uid, BANNER_URL, caption=f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>! 👋", reply_markup=kb.as_markup())
+            # Explicit parse_mode attached to photo function
+            await bot.send_photo(
+                chat_id=uid, 
+                photo=BANNER_URL, 
+                caption=f"<b>🌌 APX PRIME OS v190.0</b>\n\nHello <b>{callback.from_user.first_name}</b>! 👋", 
+                parse_mode="HTML",
+                reply_markup=kb.as_markup()
+            )
         else:
             await callback.answer("❌ Join channel first!", show_alert=True)
     except:
@@ -105,28 +118,28 @@ async def get_key(callback: types.CallbackQuery):
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("INSERT OR REPLACE INTO users (uid, expiry, is_vip, temp_key) VALUES (?, ?, 0, ?)", (callback.from_user.id, "NONE", key))
     conn.commit(); conn.close()
-    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>")
+    await callback.message.answer(f"🔑 <b>7-DAY ACCESS KEY</b>\n\n<code>{key}</code>\n\nSend: <code>/verify {key}</code>", parse_mode="HTML")
 
 @dp.message(F.text.startswith("/verify"))
 async def verify_cmd(message: types.Message):
     try: key = message.text.split(maxsplit=1)[1].strip()
-    except: return await message.answer("❌ Use: <code>/verify YOUR_KEY</code>")
+    except: return await message.answer("❌ Use: <code>/verify YOUR_KEY</code>", parse_mode="HTML")
 
     conn = sqlite3.connect('apx_stable_v190.db')
     row = conn.execute("SELECT temp_key FROM users WHERE uid = ?", (message.from_user.id,)).fetchone()
     conn.close()
 
-    if not row or row[0] != key: return await message.answer("❌ <b>Invalid Key!</b>")
+    if not row or row[0] != key: return await message.answer("❌ <b>Invalid Key!</b>", parse_mode="HTML")
 
     exp = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect('apx_stable_v190.db')
     conn.execute("UPDATE users SET expiry = ?, is_vip = 1 WHERE uid = ?", (exp, message.from_user.id))
     conn.commit(); conn.close()
 
-    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: <code>{exp[:10]}</code>")
+    await message.answer(f"✅ <b>7 DAYS ACCESS ACTIVATED!</b>\nValid until: <code>{exp[:10]}</code>", parse_mode="HTML")
     await show_mode_selection_msg(message.from_user.id)
 
-# ====================== DYNAMIC TERMINAL WORKFLOW ======================
+# ====================== TERMINAL CORE WORKFLOW ======================
 async def show_mode_selection_msg(uid: int):
     user_ctx[uid] = {"pairs": [], "last_report": None, "strategy": None, "mode": None}
     kb = InlineKeyboardBuilder().row(
@@ -134,7 +147,7 @@ async def show_mode_selection_msg(uid: int):
         types.InlineKeyboardButton(text="🌐 MULTI (MAX 3)", callback_data="m:multi")
     )
     b_msg = await get_broadcast_context()
-    await bot.send_message(uid, f"{b_msg}\n\n━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SELECT OPERATIONAL MODE:</b>", reply_markup=kb.as_markup())
+    await bot.send_message(uid, f"{b_msg}\n\n━━━━━━━━━━━━━━━━━━━━━━\n⚡ <b>SELECT OPERATIONAL MODE:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data.startswith("m:"))
 async def mode_set(callback: types.CallbackQuery):
@@ -153,7 +166,7 @@ async def send_pair_selection(uid: int):
     builder.adjust(2)
     if sel: builder.row(types.InlineKeyboardButton(text="🚀 NEXT → STRATEGY", callback_data="select_strategy"))
     builder.row(types.InlineKeyboardButton(text="⬅️ BACK TO MODE", callback_data="back_to_mode"))
-    await bot.send_message(uid, "🧪 <b>SELECT ASSETS (MAX 3):</b>\n<i>Tap to configure operational matrix</i>", reply_markup=builder.as_markup())
+    await bot.send_message(uid, "🧪 <b>SELECT ASSETS (MAX 3):</b>\n<i>Tap to configure operational matrix</i>", parse_mode="HTML", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("sel:"))
 async def toggle_pair(callback: types.CallbackQuery):
@@ -178,7 +191,7 @@ async def select_strategy(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for key, name in STRATEGIES.items():
         kb.row(types.InlineKeyboardButton(text=name, callback_data=f"strat:{key}"))
-    await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", reply_markup=kb.as_markup())
+    await callback.message.edit_text("📈 <b>SELECT YOUR AI STRATEGY:</b>", parse_mode="HTML", reply_markup=kb.as_markup())
 
 # ====================== STRATEGY -> QUOTEX DAYS -> TIME STEP FLOW ======================
 @dp.callback_query(F.data.startswith("strat:"))
@@ -188,7 +201,7 @@ async def set_strategy(callback: types.CallbackQuery):
     user_ctx[uid]["strategy"] = STRATEGIES[callback.data.split(":")[1]]
     user_ctx[uid]["step"] = "quotex_days"
     await callback.message.delete()
-    await bot.send_message(uid, "🔢 <b>Enter Quotex Data Range Days:</b>\n(e.g., Send <code>30</code> for 30-day historical analysis)")
+    await bot.send_message(uid, "🔢 <b>Enter Quotex Data Range Days:</b>\n(e.g., Send <code>30</code> for 30-day historical analysis)", parse_mode="HTML")
 
 @dp.message(F.text.regexp(r'^\d+$'))
 async def handle_quotex_days(message: types.Message):
@@ -196,7 +209,7 @@ async def handle_quotex_days(message: types.Message):
     if uid not in user_ctx or user_ctx[uid].get("step") != "quotex_days": return
     user_ctx[uid]["quotex_days"] = message.text
     user_ctx[uid]["step"] = "start_t"
-    await message.answer("🕒 <b>Enter Start Time Parameter (HH:MM):</b>\n(e.g., <code>16:00</code>)")
+    await message.answer("🕒 <b>Enter Start Time Parameter (HH:MM):</b>\n(e.g., <code>16:00</code>)", parse_mode="HTML")
 
 @dp.message(F.text.regexp(r'^([01]\d|2[0-3]):([0-5]\d)$'))
 async def handle_times(message: types.Message):
@@ -207,27 +220,26 @@ async def handle_times(message: types.Message):
     if data["step"] == "start_t":
         data["start_t"] = message.text
         data["step"] = "end_t"
-        await message.answer("🕒 <b>Enter End Time Parameter (HH:MM):</b>\n(e.g., <code>18:00</code>)")
+        await message.answer("🕒 <b>Enter End Time Parameter (HH:MM):</b>\n(e.g., <code>18:00</code>)", parse_mode="HTML")
     elif data["step"] == "end_t":
         data["end_t"] = message.text
         data["step"] = "processing"
         await execute_live_signals(message)
 
-# ====================== STYLISH CORE EXECUTION INTEGRATION ======================
+# ====================== ENGINE PACKET FILTER ======================
 async def execute_live_signals(message: types.Message, is_regen=False):
     uid = message.from_user.id
     data = user_ctx.get(uid)
-    if not data or not data.get("pairs"): return await bot.send_message(uid, "⚠️ Configuration parameters missing.")
+    if not data or not data.get("pairs"): return await bot.send_message(uid, "⚠️ Configuration parameters missing.", parse_mode="HTML")
 
     if is_regen and data.get("last_report"):
         report_content = data["last_report"]
     else:
-        # High-End Cybernetic Rainbow Loading sequence
-        load = await bot.send_message(uid, "🌌 <b>INITIALIZING APX QUANTUM INTERFACE</b>\n<code>🔴🧡  20% CORE SYNC</code>")
+        load = await bot.send_message(uid, "🌌 <b>INITIALIZING APX QUANTUM INTERFACE</b>\n<code>🔴🧡  20% CORE SYNC</code>", parse_mode="HTML")
         await asyncio.sleep(0.4)
-        await load.edit_text("🌌 <b>SYNCHRONIZING TARGET PACKET HOOKS</b>\n<code>🔴🧡💛💚  60% STREAMING</code>")
+        await load.edit_text("🌌 <b>SYNCHRONIZING TARGET PACKET HOOKS</b>\n<code>🔴🧡💛💚  60% STREAMING</code>", parse_mode="HTML")
         await asyncio.sleep(0.4)
-        await load.edit_text("🌌 <b>PARSING API SECURE SERVER ARRAY</b>\n<code>🔴🧡💛💚🟦🟣  100% COMPLETE</code>")
+        await load.edit_text("🌌 <b>PARSING API SECURE SERVER ARRAY</b>\n<code>🔴🧡💛💚🟦🟣  100% COMPLETE</code>", parse_mode="HTML")
         await asyncio.sleep(0.2)
 
         start_time = datetime.datetime.strptime(data['start_t'], "%H:%M").time()
@@ -250,7 +262,6 @@ async def execute_live_signals(message: types.Message, is_regen=False):
                             for line in raw_text.splitlines():
                                 if not line.strip(): continue
                                 
-                                # Flexible Multi-Separator Parsing Framework (Handles => , | , -)
                                 line_clean = line.replace('⧉', '').replace('⚡', '').replace('⇨', '').strip()
                                 parts = []
                                 if "=>" in line: parts = [p.strip() for p in line.split("=>")]
@@ -272,7 +283,6 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         signals.sort(key=lambda x: x[0])
 
         body = ""
-        # Absolute structural line layout formatting mapping to protect grid array
         for _, pair, direction, t in signals[:45]:
             arrow = "↑" if direction in ["CALL", "BUY"] else "↓"
             body += f"⧉ {pair+'-OTC':<12} → {t} ⇨ {direction:<4} {arrow}\n"
@@ -292,12 +302,12 @@ async def execute_live_signals(message: types.Message, is_regen=False):
         types.InlineKeyboardButton(text="🔄 CHANGE PAIRS", callback_data="change_pair_back"),
         types.InlineKeyboardButton(text="❌ EXIT TERMINAL", callback_data="exit_sys")
     )
-    await bot.send_message(uid, f"📋 <b>TAP TO COPY SIGNALS:</b>\n\n<code>{report_content}</code>", reply_markup=kb.as_markup())
+    await bot.send_message(uid, f"📋 <b>TAP TO COPY SIGNALS:</b>\n\n<code>{report_content}</code>", parse_mode="HTML", reply_markup=kb.as_markup())
 
-# ====================== CLEAN CALLBACK CONTEXT MAPS ======================
+# ====================== CALLBACKS ======================
 @dp.callback_query(F.data == "regen_sig")
 async def regen_sig(callback: types.CallbackQuery):
-    await callback.answer("Resynchronizing server telemetry parameters...")
+    await callback.answer("Resynchronizing server parameters...")
     await execute_live_signals(callback, is_regen=True)
 
 @dp.callback_query(F.data == "copy_signals")
@@ -312,7 +322,7 @@ async def change_pair_back(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "exit_sys")
 async def exit_sys(callback: types.CallbackQuery):
     await callback.answer(); await callback.message.delete()
-    await bot.send_message(callback.from_user.id, "<code>APX PRIME SECURE DISCONNECTION MATRIX CLOSED SAFELY.\nGoodbye! 👋</code>")
+    await bot.send_message(callback.from_user.id, "<code>APX PRIME SECURE DISCONNECTION MATRIX CLOSED SAFELY.\nGoodbye! 👋</code>", parse_mode="HTML")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
